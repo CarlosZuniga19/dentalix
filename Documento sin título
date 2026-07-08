@@ -1,0 +1,103 @@
+Crear una plataforma para vista en web de escritorio y WPA para movil, que se pueda tambien instalar en pc
+Diseño: colores de doctor, limpio con contrastes en lila, todos los botones van a ser capsulas con el color de contraste
+que la app se llame Dentalix
+La app tendra los siguientes apartados: Calendario, Agenda, Citas, Pacientes, Procedimientos, Recordatorios, Ajustes
+el primer apartado seria Calendario, este mostraria el mes completo, pero separado por semana de lunes a sabado, que en la version movil se muestren solo 3 dias y se peuda hacer scroll horizontal para ver los demas dias de la semana (img 1) si hay una cita que se muestre una capsula con la hora de la cita, y alpresionar la capsula mande a la cita que esta en el apartado Citas (el tercer apartado de nuestra app), Al final de la cuadricula mostrar un boton que diga bloquear dia, y al presionarlo el usuario puedar marcar con el dedo los dias que quiere bloquear para no agendar citas. y estos se muestren con el mensaje No Disponible en rojo
+
+El segundo apartado que viene siendo Agenda, tiene que mostrar una cuadricula con las citas que se tengan en el dia, (img 5) que en la version movil se muestren solo 3 dias y se peuda hacer scroll horizontal para ver los demas dias de la semana (img 5) si hay una cita que se muestre una capsula con la hora de la cita, y alpresionar la capsula mande a la cita que esta en el apartado Citas (el tercero apartado de nuestra app),  Al final de la cuadricula mostrar un boton que diga bloquear horas, y al presionarlo el usuario puedar marcar con el dedo las horas que quiere bloquear para no agendar citas. y estos se muestren con el mensaje No Disponible en rojo
+El tercer apartado que viene siendo Citas tiene que mostrar un listado de todas las citas pendientes  y hasta arriba un boton que diga Agrear Nueva cita y este mandaria al apartado Nuevo Paciente que esta dentro de nuestro cuarto apartado Pacientes, cuando se abra desde aqui este formulario, agregarle hasta arriba un boton multiselect que diga Estado y que sea un multiselect con las opciones: programado, solicitado, el paciente llegó, no se presento, cancelado. 
+
+El cuarto apartado que viene siendo Pacientes que muestre un listado de todos los pacientes guardados, y el boton de Agregar paciente hasta arriba,  este abriria una ventana que debe tener lo siguiente: tener los apartados de un selector de calendario para seleccionar el dia de la fecha, Hora, que esta muestre un selector de hora y minutos, el sigueinte seria Profesionales, que sea una caja de texto capaz de recordar cregistros anteriores, Luego un texto que diga Paciente nuevo y abajo cajas de texto para rellenar sus datos: Nombre, Telefono, Notas, FEchas de NAcimiento, Direccion, Ocupación y Motivo de consulta. Luego en el siguiente apartado un texto que diga Procedimientos y este sea un Multiselect de los procedimientos guadados en otro apartado que haremos, este seria para definir costos por procedimientos dentales, ej. Limpieza dental $800 que este multiselec no desaparezca al seleccionar uno, porque un paciente puede tener varios procedimientos, Abajo de este apartado mostrar la suma total de los procedimientos seleccionados de forma desglosada. El siguiente apartado seria Recordatorios: Ene ste se mostraria un resumen de la cita con el texto inicial: Para confirmar su cita del día: y la fecha y hora de la cita. Este whatsapp lo haremos con metabusiness, integrandolo con pm2 para que siempre este activo, solo serviria para confirmar citas, si alguien manda  algo solicitando otra cosa, decirles cordialmente que escriban al whats personal de la doctora Hasdra Guerrero. El siguiente apartado seria Enviar Presupuesto, y este armaria un PDF con los items que se agregaron en Procedimientos, desglosado como lo muestro en la img 2. EL siguiente apartado seria Pagos, este tendria abajo una caja de texto y que se abra el teclado numerico en celulares, para poner cuato esta dejando el px, abajo de la caja de texto poner un boton que diga Abonar, y abajo de esto se muestre el texto Total a pagar: $ y lo que le queda al px por pagar tomando en cuenta los procedimientos que se registraron y descontando el abono que dio, el siguiente apartado seria Tratamiento: este mandaria a una ventana emergente que muestra un selector de fecha y hora para ese procedimiento, luego un multiselect que arroja todos los procedimientos que haremos en otro apartado, y abajo viene un odontograma para seleccionar a que dientes se le aplicaria el procedimiento seleccionado, img 3, y al final ya nada mas un boton de agregar tratamiento, y al presionarlo regresa ala vista de la cita en el apartado de Tratamiento y muestra una capsula del que acabamos de guardar, El siguiente apartado seria Historial dental: Este mostraria igual un odontograma (img 4) capaz de seleccionar cada diente y al seleccionar un diente se abre la siguiente lista:
+Caries
+Resina
+Ausente
+Tratamiento de conducto redicular
+Fractura de corona
+Sensibilidad
+Reconstrucción
+Corona
+Implante
+Puente
+Protesis Removible
+Corona, poste y nucleo
+Diente pilar
+Resto radicular
+No vital
+Movilidad 1
+Movilidad 2
+Movilidad 3
+Recesion gingival
+Nota y este que abra una caja de texto para escribir una nota, todas estas opciones tienen que tener al inicio un circulo de color diferente y cuando seleccionas se cierra la lista y el diente se pinta de ese color, abajo de esto hay un boton para subir imagenes del paciente, cuando se cargue una mostrar la miniatura o miniaturas abajo y al presionar que se abra en grande, El siguiente apartado seria Anamnesis, este seria un listado con las siguientes opciones: 
+
+1. Dolor en el pecho
+2. Enfermedades del corazón
+3. Algún problema respiratorio
+4. Asma o fiebre de heno
+5. Alergias
+6. Desmayos, convulsiones o epilepsia
+7. Diabetes
+8. Hepatitis o enfermedad del hígado
+9. Artritis - reumatismo
+10. Úlcera gástrica
+11. Dolor abdominal
+12. Dolor de cabeza
+13. Dolor muscular
+14. Fiebre frecuente
+15. Mareos vértigo
+16. Enfermedad del riñón
+17. Tuberculosis
+18. Problemas de presión arterial
+19. Anemia
+20. Hemofilia
+21. Tuvo hemorragias después de extracciones
+22. Enfermedad mental o problemas emocionales
+23. Radioterapia o tratamiento para el cáncer
+24. Enfermedades por transmisión sexual
+25. Problemas de tiroides
+26. Enfermedades de la piel
+27. Ha tenido un crecimiento anormal o tumoración
+28. Delirio o estado confusional
+29. Tabaquismo actual
+30. Alcoholismo actual
+31. Alcoholismo en el pasado
+32. ¿Ha consumido drogas?
+33. ¿Le han practicado exámenes para detectar SIDA?
+34. ¿Está usted embarazada?
+35. ¿Ya se presentó la menopausia?
+36. ¿Su médico autoriza el tratamiento dental?
+37. ¿Está usted amamantando?
+38. ¿Utiliza algún método anticonceptivo?
+39. Varicela
+40. Sarampión
+41. Rubéola
+42. Paperas
+Para todas estas opciones al final poner un signo de interrogacion y cuando el usuario presione una se cambia el signo a No, al presionar de nuevo se cambia a Si, y se abre una caja de texto abajo para explicar el detalle, Al final de esta pagina de Nueva cita poner el boton Guardar cita, y al presionarlo se devuelve al listado de citas de todos los pacientes, mostrandolas en orden conforme se vaya acercando la hora de la cita.
+
+El quinto apartado seria Procedimientos, aqui se mostraria hasta arriba un boton para agregar un procedimiento, y este abriria una ventana con las cajs de texto: Nombre, Color es un selector de color hexagecimal para definir que color sera ese procedimiento que es el mismo que se muestra en el odontograma de nuevo paciente y que tambien se abre en nueva cita, abajo del selector de color  una caja de texto que diga precio y abra el teclado numerico para poner el precio de ese procedimiento, y al final un boton para guardar procedimiento y a guardarlo que regrese a la pantalla anterior, en seguida poner una caja de texto para buscar procedimientos al teclear que se vayan filtrando las coincidencias, en seguida de esto seria un listado de todos los procedimientos:
+Resinas $700
+Extraccion simple $900
+Extracción c/cirugia $1500
+Corona dental porcelana $4500
+Puente porcelana 3 unidades $13500
+Alargamiento coronario $1700
+Cirugía 3M simple $1500
+Cirugía 3M $2500
+Limpieza $700
+Prótesis total $8500
+Prótesis removible $8500
+Implantes $30000
+Blanqueamiento dental 6 dientes $3500
+Primera vez $400
+Tratamiento de conductos $3000
+Radiografía $100
+Serie radiográfica $700
+Selladores de fosetas y fisuras $500
+Curetaje cerrado por cuadrante $1500 
+Injerto óseo $1000
+Gingivectomia $3500
+
+El penultimo apartado seria, Recordatorios, en este poner un listado de citas del dia, y que el usuario pueda agregar recordatorios manualmente, y ponerle nivel de prioridad
+
+EL ultimo apartado de ajustes poner ajustes normales de una app, como colores, nombre, login, cerrar sesion
+
+Crear un repositorio de accesos directos a presentaciones guardadas en google drive, este apartado iria al final de la plataforma, que se puedan borrar y subir tambien mas presetaciones de power point

@@ -1,0 +1,33 @@
+name: Despliegue Dentalix
+
+on:
+  push:
+    branches:
+      - main # O la rama que uses para producción
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Descargar código
+      uses: actions/checkout@v4
+
+    - name: Configurar Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-size: 22
+
+    - name: Instalar y Compilar
+      run: |
+        cd dentalix-frontend
+        npm install
+        npm run build
+
+    - name: Subir a Hostinger vía FTP
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.FTP_USERNAME }}
+        password: ${{ secrets.FTP_PASSWORD }}
+        local-dir: ./dentalix-frontend/dist/
+        server-dir: ./
