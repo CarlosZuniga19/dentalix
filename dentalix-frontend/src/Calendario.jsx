@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react'; // Agregamos los íconos de flechas
 
 export default function Calendario() {
   const navigate = useNavigate();
@@ -9,10 +9,12 @@ export default function Calendario() {
   const [diasBloqueados, setDiasBloqueados] = useState([]); 
   const [citasReales, setCitasReales] = useState([]);
   const [guardando, setGuardando] = useState(false);
+  
+  // NUEVO: Estado para navegar entre meses
+  const [fechaBase, setFechaBase] = useState(new Date());
 
   const API_URL = 'https://dentalix.lat/api.php';
 
-  // Cargar datos reales al abrir la pantalla
   useEffect(() => {
     fetch(`${API_URL}?accion=calendario_datos`)
       .then(res => res.json())
@@ -23,10 +25,19 @@ export default function Calendario() {
       .catch(err => console.error("Error al cargar calendario:", err));
   }, []);
 
+  // Funciones para cambiar de mes
+  const mesAnterior = () => {
+    setFechaBase(new Date(fechaBase.getFullYear(), fechaBase.getMonth() - 1, 1));
+  };
+
+  const mesSiguiente = () => {
+    setFechaBase(new Date(fechaBase.getFullYear(), fechaBase.getMonth() + 1, 1));
+  };
+
   const generarMes = () => {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = date.getMonth(); 
+    // Usamos fechaBase en lugar de new Date() quemado
+    const year = fechaBase.getFullYear();
+    const month = fechaBase.getMonth(); 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let weeks = [];
     let currentWeek = Array(6).fill(null); 
@@ -64,7 +75,6 @@ export default function Calendario() {
 
   const toggleModoBloqueo = () => {
     if (modoBloqueo) {
-      // Si estaba editando, ahora mandamos a guardar a Hostinger
       setGuardando(true);
       fetch(`${API_URL}?accion=guardar_bloqueos`, {
         method: 'POST',
@@ -77,26 +87,33 @@ export default function Calendario() {
         setModoBloqueo(false);
       });
     } else {
-      // Activar modo edición
       setModoBloqueo(true);
     }
   };
 
-  // AQUÍ ESTÁ LA CORRECCIÓN QUIRÚRGICA
   const handleCitaClick = (e, citaId) => {
     e.stopPropagation(); 
-    // Mandamos el ID dentro de la propiedad "state" para que Citas lo reciba y abra la edición
     navigate('/citas', { state: { citaIdParaEditar: Number(citaId) } }); 
   };
 
   return (
     <div className="max-w-6xl mx-auto pb-24">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-dark capitalize">
-            {new Date().toLocaleString('es-MX', { month: 'long', year: 'numeric' })}
-          </h1>
-          <p className="text-muted text-sm mt-1">Desliza lateralmente en celular para ver la semana completa.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        
+        {/* NUEVO: Controles de navegación de mes */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 bg-white rounded-full border border-gray-200 p-1 shadow-sm w-max">
+            <button onClick={mesAnterior} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronLeft size={24} className="text-dark" />
+            </button>
+            <h1 className="text-xl font-bold text-dark capitalize min-w-[140px] text-center">
+              {fechaBase.toLocaleString('es-MX', { month: 'long', year: 'numeric' })}
+            </h1>
+            <button onClick={mesSiguiente} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronRight size={24} className="text-dark" />
+            </button>
+          </div>
+          <p className="text-muted text-sm px-2">Desliza lateralmente en celular para ver la semana.</p>
         </div>
         
         <button 
@@ -121,21 +138,24 @@ export default function Calendario() {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 sm:gap-6">
-        {semanas.map((semana, semanaIndex) => (
-          <div key={semanaIndex} className="bg-white p-3 sm:p-4 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex md:grid md:grid-cols-6 gap-2 sm:gap-4 overflow-x-auto snap-x snap-mandatory pb-2 md:pb-0" style={{ scrollbarWidth: 'none' }}>
+      {/* Contenedor principal con scroll horizontal único que mueve todo el mes */}
+      <div className="bg-white p-3 sm:p-4 rounded-3xl shadow-sm border border-gray-100 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        
+        {/* El min-w obliga a que en celulares mantenga su forma y se active el scroll del contenedor padre */}
+        <div className="min-w-[700px] md:min-w-0 flex flex-col gap-2 sm:gap-4">
+          
+          {semanas.map((semana, semanaIndex) => (
+            <div key={semanaIndex} className="grid grid-cols-6 gap-2 sm:gap-4">
               
               {semana.map((dia, diaIndex) => {
                 const isBlocked = dia ? diasBloqueados.includes(dia.fechaStr) : false;
-                // Filtramos las citas reales de la base de datos para este día
                 const citasDelDia = dia ? citasReales.filter(c => c.fecha === dia.fechaStr) : [];
                 
                 return (
                   <div 
                     key={diaIndex} 
                     onClick={() => dia && handleDiaClick(dia.fechaStr)}
-                    className={`min-w-[calc(33.333%-0.5rem)] md:min-w-0 flex-shrink-0 snap-start bg-surface rounded-2xl border-2 transition-all min-h-[120px] md:min-h-[140px] flex flex-col relative overflow-hidden ${
+                    className={`bg-surface rounded-2xl border-2 transition-all min-h-[120px] md:min-h-[140px] flex flex-col relative overflow-hidden ${
                       !dia ? 'opacity-0 pointer-events-none' : ''
                     } ${modoBloqueo && dia ? 'cursor-pointer hover:border-danger/50' : ''} ${
                       isBlocked ? 'border-danger bg-danger/5' : 'border-transparent'
@@ -174,8 +194,8 @@ export default function Calendario() {
                 );
               })}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -108,14 +108,14 @@ export default function Agenda() {
         </div>
       )}
 
-      {/* Contenedor de la Cuadrícula con un SOLO Scroll Bidireccional */}
-      <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-auto relative">
+      {/* Contenedor de la Cuadrícula: Se agregó 'z-0' para aislar el contexto de apilamiento y no superponer el menú lateral */}
+      <div className="flex-1 bg-white border border-gray-200 rounded-2xl shadow-sm overflow-auto relative z-0">
         <div className="flex min-w-max md:min-w-full">
           
-          {/* COLUMNA DE HORAS FIJA (Sticky Left) */}
-          <div className="w-16 md:w-20 shrink-0 sticky left-0 z-30 bg-white border-r border-gray-200 shadow-[2px_0_10px_rgba(0,0,0,0.03)] flex flex-col">
-            {/* Esquina superior izquierda (Doble Sticky: Top y Left) */}
-            <div className="h-12 md:h-14 sticky top-0 z-40 bg-surface border-b border-gray-200"></div>
+          {/* COLUMNA DE HORAS FIJA (Sticky Left): z-index reducido a 10 */}
+          <div className="w-16 md:w-20 shrink-0 sticky left-0 z-10 bg-white border-r border-gray-200 shadow-[2px_0_10px_rgba(0,0,0,0.03)] flex flex-col">
+            {/* Esquina superior izquierda (Doble Sticky: Top y Left): z-index reducido a 20 */}
+            <div className="h-12 md:h-14 sticky top-0 z-20 bg-surface border-b border-gray-200"></div>
             
             {horas.map((hora, idx) => (
               <div key={idx} className="h-20 border-b border-gray-100 flex items-start justify-center pt-2 bg-white">
@@ -128,8 +128,8 @@ export default function Agenda() {
           {dias.map((dia, diaIdx) => (
             <div key={diaIdx} className="w-[130px] sm:w-[150px] md:w-auto md:flex-1 shrink-0 flex flex-col border-r border-gray-200 last:border-r-0">
               
-              {/* Cabecera del Día (Sticky Top) */}
-              <div className="h-12 md:h-14 sticky top-0 z-20 bg-surface border-b border-gray-200 flex items-center justify-center shadow-sm">
+              {/* Cabecera del Día (Sticky Top): z-index reducido a 10 */}
+              <div className="h-12 md:h-14 sticky top-0 z-10 bg-surface border-b border-gray-200 flex items-center justify-center shadow-sm">
                 <span className="text-[10px] md:text-xs font-black text-primary uppercase">{dia.nombre} {dia.numero}</span>
               </div>
               
@@ -169,7 +169,7 @@ export default function Agenda() {
                           e.stopPropagation(); 
                           navigate(`/citas`, { state: { citaIdParaEditar: Number(cita.id) } }); 
                         }}
-                        className="w-full bg-primary/10 text-primary border-l-4 border-primary rounded-r-lg shadow-sm text-left p-1.5 flex flex-col overflow-hidden hover:bg-primary hover:text-white transition-all z-10 shrink-0"
+                        className="w-full bg-primary/10 text-primary border-l-4 border-primary rounded-r-lg shadow-sm text-left p-1.5 flex flex-col overflow-hidden hover:bg-primary hover:text-white transition-all relative shrink-0"
                       >
                         <div className="font-black text-[10px] md:text-xs font-mono leading-none mb-0.5">{cita.hora.substring(0,5)}</div>
                         <div className="truncate text-[9px] md:text-[10px] font-bold tracking-tight uppercase leading-tight">{cita.paciente}</div>

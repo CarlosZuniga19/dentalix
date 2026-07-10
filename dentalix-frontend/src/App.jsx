@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, Menu, X } from 'lucide-react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Link } from 'react-router-dom';
+// Eliminamos Menu y X ya que no usaremos el botón de hamburguesa
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -12,47 +13,72 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
 function Layout({ children, nombreClinica }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300">
-      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-background border-b border-gray-200 flex items-center justify-between px-4 z-40">
-        <span className="text-primary font-bold text-xl">{nombreClinica}</span>
-        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-primary p-2 focus:outline-none">
-          {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
-        </button>
+      
+      {/* CABECERA MÓVIL (Solo Logo Clickeable, sin hamburguesa) */}
+      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-background border-b border-gray-200 flex items-center justify-center z-40">
+        <Link to="/" className="text-primary font-bold text-xl hover:opacity-80 transition-opacity">
+          {nombreClinica}
+        </Link>
       </div>
 
-      {isMenuOpen && (
-        <div className="fixed inset-0 bg-dark/20 z-20 md:hidden transition-opacity" onClick={() => setIsMenuOpen(false)} />
-      )}
-
-      <nav className={`fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 transition-transform duration-300 ease-in-out flex flex-col pt-20 md:pt-4 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="hidden md:block text-primary font-bold text-2xl mb-8 text-center mt-4">
+      {/* MENÚ LATERAL ESCRITORIO (Oculto en móvil) */}
+      <nav className="hidden md:flex fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 flex-col transition-transform duration-300 ease-in-out">
+        <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity">
           {nombreClinica}
-        </div>
+        </Link>
         
-        <NavItem to="/" icon={<Calendar />} label="Calendario" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/agenda" icon={<Clock />} label="Agenda" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/citas" icon={<ClipboardList />} label="Citas" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/pacientes" icon={<Users />} label="Pacientes" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/recordatorios" icon={<Bell />} label="Recordatorios" onClick={() => setIsMenuOpen(false)} />
-        <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" onClick={() => setIsMenuOpen(false)} />
+        <NavItem to="/" icon={<Calendar />} label="Calendario" />
+        <NavItem to="/agenda" icon={<Clock />} label="Agenda" />
+        <NavItem to="/citas" icon={<ClipboardList />} label="Citas" />
+        <NavItem to="/pacientes" icon={<Users />} label="Pacientes" />
+        <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" />
+        <NavItem to="/recordatorios" icon={<Bell />} label="Recordatorios" />
+        <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 bg-surface">
+      {/* ÁREA DE CONTENIDO (Se agregó mb-16 en móvil para que la barra inferior no lo tape) */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 mb-16 md:mb-0 bg-surface relative">
         {children}
       </main>
+
+      {/* NUEVA BARRA INFERIOR MÓVIL (Estilo iOS / Facebook) */}
+      <nav 
+        className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-background border-t border-gray-200 z-50 flex overflow-x-auto shadow-[0_-4px_10px_rgba(0,0,0,0.05)]"
+        style={{ scrollbarWidth: 'none' }}
+      >
+        <div className="flex min-w-max px-2">
+          {/* Usamos un componente específico para el diseño compacto de la barra inferior */}
+          <MobileNavItem to="/" icon={<Calendar size={22} />} label="Calendario" />
+          <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
+          <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
+          <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
+          <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
+          <MobileNavItem to="/recordatorios" icon={<Bell size={22} />} label="Recordatorios" />
+          <MobileNavItem to="/ajustes" icon={<Settings size={22} />} label="Ajustes" />
+        </div>
+      </nav>
     </div>
   );
 }
 
-function NavItem({ to, icon, label, onClick }) {
+/* COMPONENTE PARA BOTONES DEL MENÚ ESCRITORIO */
+function NavItem({ to, icon, label }) {
   return (
-    <NavLink to={to} onClick={onClick} className={({ isActive }) => `flex items-center p-3 mb-2 rounded-full transition-colors ${isActive ? 'bg-primary text-white shadow-sm' : 'text-muted hover:bg-surface hover:text-primary'}`}>
+    <NavLink to={to} className={({ isActive }) => `flex items-center p-3 mb-2 rounded-full transition-colors ${isActive ? 'bg-primary text-white shadow-sm' : 'text-muted hover:bg-surface hover:text-primary'}`}>
       <div className="w-6 h-6 mr-3">{icon}</div>
       <span className="text-sm font-medium">{label}</span>
+    </NavLink>
+  );
+}
+
+/* NUEVO COMPONENTE PARA BOTONES DE LA BARRA INFERIOR MÓVIL */
+function MobileNavItem({ to, icon, label }) {
+  return (
+    <NavLink to={to} className={({ isActive }) => `flex flex-col items-center justify-center w-[72px] h-16 transition-colors shrink-0 ${isActive ? 'text-primary' : 'text-muted hover:text-primary'}`}>
+      <div className="mb-1">{icon}</div>
+      <span className="text-[10px] font-bold max-w-full truncate px-1">{label}</span>
     </NavLink>
   );
 }
