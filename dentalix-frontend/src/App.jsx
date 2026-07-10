@@ -38,27 +38,28 @@ function Layout({ children, nombreClinica }) {
         <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
-      {/* ÁREA DE CONTENIDO (Se agregó mb-16 en móvil para que la barra inferior no lo tape) */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 mb-16 md:mb-0 bg-surface relative">
+      {/* ÁREA DE CONTENIDO (Aumentamos a mb-28 para que la cápsula flotante no tape el contenido al hacer scroll hasta abajo) */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 mb-28 md:mb-0 bg-surface relative">
         {children}
       </main>
 
-      {/* NUEVA BARRA INFERIOR MÓVIL (Estilo iOS / Facebook) */}
-      <nav 
-        className="md:hidden fixed bottom-0 left-0 w-full h-16 bg-background border-t border-gray-200 z-50 flex overflow-x-auto shadow-[0_-4px_10px_rgba(0,0,0,0.05)]"
-        style={{ scrollbarWidth: 'none' }}
-      >
-        <div className="flex min-w-max px-2">
-          {/* Usamos un componente específico para el diseño compacto de la barra inferior */}
-          <MobileNavItem to="/" icon={<Calendar size={22} />} label="Calendario" />
-          <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
-          <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
-          <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
-          <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
-          <MobileNavItem to="/recordatorios" icon={<Bell size={22} />} label="Recordatorios" />
-          <MobileNavItem to="/ajustes" icon={<Settings size={22} />} label="Ajustes" />
-        </div>
-      </nav>
+      {/* NUEVA BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
+      <div className="md:hidden fixed bottom-6 left-0 w-full px-4 z-50 flex justify-center pointer-events-none">
+        <nav 
+          className="bg-background/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div className="flex min-w-max px-2 py-1">
+            <MobileNavItem to="/" icon={<Calendar size={22} />} label="Calendario" />
+            <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
+            <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
+            <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
+            <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
+            <MobileNavItem to="/recordatorios" icon={<Bell size={22} />} label="Recordatorios" />
+            <MobileNavItem to="/ajustes" icon={<Settings size={22} />} label="Ajustes" />
+          </div>
+        </nav>
+      </div>
     </div>
   );
 }
@@ -73,10 +74,10 @@ function NavItem({ to, icon, label }) {
   );
 }
 
-/* NUEVO COMPONENTE PARA BOTONES DE LA BARRA INFERIOR MÓVIL */
+/* COMPONENTE PARA BOTONES DE LA BARRA INFERIOR MÓVIL */
 function MobileNavItem({ to, icon, label }) {
   return (
-    <NavLink to={to} className={({ isActive }) => `flex flex-col items-center justify-center w-[72px] h-16 transition-colors shrink-0 ${isActive ? 'text-primary' : 'text-muted hover:text-primary'}`}>
+    <NavLink to={to} className={({ isActive }) => `flex flex-col items-center justify-center w-[72px] h-14 transition-colors shrink-0 ${isActive ? 'text-primary' : 'text-muted hover:text-primary'}`}>
       <div className="mb-1">{icon}</div>
       <span className="text-[10px] font-bold max-w-full truncate px-1">{label}</span>
     </NavLink>
