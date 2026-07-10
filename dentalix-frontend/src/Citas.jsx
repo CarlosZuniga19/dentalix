@@ -289,7 +289,7 @@ export default function Citas() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora General</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" value={profesional} onChange={e => setProfesional(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
         </section>
 
