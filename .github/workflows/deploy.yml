@@ -30,4 +30,4 @@ jobs:
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dentalix-frontend/dist/
-        server-dir: ./
+        server-dir: ./domains/dentalix.lat/public_html/
