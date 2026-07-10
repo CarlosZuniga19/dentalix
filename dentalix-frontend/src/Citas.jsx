@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Check, FileDown, MessageCircle, Search, Upload } from 'lucide-react';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- Corregido el import de autoTable para el PDF
+import autoTable from 'jspdf-autotable';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const ANAMNESIS_ITEMS = [ "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le han practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas" ];
@@ -117,7 +117,7 @@ export default function Citas() {
     const payload = {
       paciente: datosPaciente,
       cita: { id: idCitaEditando, fecha, hora, estado: estadoCita },
-      procedimientos: procedimientosSeleccionados // <-- Guardamos los procedimientos si se editaron o agregaron nuevos desde aquí
+      procedimientos: procedimientosSeleccionados 
     };
 
     fetch(`${API_URL}?accion=guardar_paciente_cita`, {
@@ -288,7 +288,7 @@ export default function Citas() {
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full min-w-0 max-w-full appearance-none p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora General</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" value={profesional} onChange={e => setProfesional(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
         </section>
@@ -309,7 +309,18 @@ export default function Citas() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="date" placeholder="Fecha Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
+            
+            {/* Input reparado con el truco dinámico y candados CSS */}
+            <input 
+              type={datosPaciente.fechaNacimiento ? "date" : "text"} 
+              placeholder="Fecha de Nacimiento"
+              onFocus={(e) => e.target.type = 'date'}
+              onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
+              value={datosPaciente.fechaNacimiento} 
+              onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} 
+              className="w-full min-w-0 max-w-full appearance-none box-border p-3 bg-surface border border-gray-200 rounded-xl" 
+            />
+
             <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
             <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
             <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
@@ -348,7 +359,7 @@ export default function Citas() {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-muted font-bold">Fecha:</label>
-                      <input type="date" value={p.fecha_procedimiento || ''} onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, fecha_procedimiento: e.target.value} : proc))} className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary" />
+                      <input type="date" value={p.fecha_procedimiento || ''} onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, fecha_procedimiento: e.target.value} : proc))} className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary w-full min-w-0 max-w-full appearance-none box-border" />
                     </div>
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-muted font-bold">Hora:</label>
