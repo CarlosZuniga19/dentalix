@@ -360,19 +360,7 @@ export default function Pacientes() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            
-            {/* Input de Fecha de Nacimiento reparado quirurgicamente */}
-            <input 
-              type={datosPaciente.fechaNacimiento ? "date" : "text"} 
-              placeholder="Fecha de Nacimiento"
-              onFocus={(e) => e.target.type = 'date'}
-              onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
-              value={datosPaciente.fechaNacimiento} 
-              onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} 
-              className="w-full min-w-0 max-w-full appearance-none box-border p-3 bg-surface border border-gray-200 rounded-xl" 
-              title="Fecha de Nacimiento" 
-            />
-
+            <input type="date" placeholder="Fecha de Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" title="Fecha de Nacimiento" />
             <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
             <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
             <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
