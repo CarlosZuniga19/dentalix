@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react'; // Agregamos los íconos de flechas
+import { ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Calendario() {
   const navigate = useNavigate();
@@ -10,7 +10,7 @@ export default function Calendario() {
   const [citasReales, setCitasReales] = useState([]);
   const [guardando, setGuardando] = useState(false);
   
-  // NUEVO: Estado para navegar entre meses
+  // Estado para navegar entre meses
   const [fechaBase, setFechaBase] = useState(new Date());
 
   const API_URL = 'https://dentalix.lat/api.php';
@@ -35,7 +35,6 @@ export default function Calendario() {
   };
 
   const generarMes = () => {
-    // Usamos fechaBase en lugar de new Date() quemado
     const year = fechaBase.getFullYear();
     const month = fechaBase.getMonth(); 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -98,38 +97,44 @@ export default function Calendario() {
 
   return (
     <div className="max-w-6xl mx-auto pb-24">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      
+      {/* CABECERA REORGANIZADA PARA VERSIÓN MÓVIL Y ESCRITORIO */}
+      <div className="relative mb-6 flex flex-col items-center">
         
-        {/* NUEVO: Controles de navegación de mes */}
-        <div className="flex flex-col gap-1">
+        {/* Botón de bloqueo alineado a la derecha como en la imagen */}
+        <div className="w-full flex justify-end mb-2 sm:mb-0 sm:absolute sm:top-0 sm:right-0 z-10">
+          <button 
+            onClick={toggleModoBloqueo}
+            disabled={guardando}
+            className={`p-2.5 sm:px-5 sm:py-2.5 rounded-full flex items-center justify-center gap-2 transition-all font-bold shadow-sm border border-gray-200 disabled:opacity-50 ${
+              modoBloqueo 
+                ? 'bg-danger text-white border-danger animate-pulse' 
+                : 'bg-white text-dark hover:bg-gray-50'
+            }`}
+          >
+            {modoBloqueo ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
+            <span className="hidden sm:inline text-sm">
+              {guardando ? 'Guardando...' : (modoBloqueo ? 'Guardar Cambios' : 'Bloquear Días')}
+            </span>
+          </button>
+        </div>
+
+        {/* Controles de navegación de mes tipo "Píldora" */}
+        <div className="flex flex-col items-center gap-2 w-full">
           <div className="flex items-center gap-2 bg-white rounded-full border border-gray-200 p-1 shadow-sm w-max">
-            <button onClick={mesAnterior} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
-              <ChevronLeft size={24} className="text-dark" />
+            <button onClick={mesAnterior} className="p-1 sm:p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronLeft size={18} className="text-dark" />
             </button>
-            <h1 className="text-xl font-bold text-dark capitalize min-w-[140px] text-center">
+            <h1 className="text-sm sm:text-base font-bold text-dark capitalize min-w-[120px] text-center">
               {fechaBase.toLocaleString('es-MX', { month: 'long', year: 'numeric' })}
             </h1>
-            <button onClick={mesSiguiente} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
-              <ChevronRight size={24} className="text-dark" />
+            <button onClick={mesSiguiente} className="p-1 sm:p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <ChevronRight size={18} className="text-dark" />
             </button>
           </div>
-          <p className="text-muted text-sm px-2">Desliza lateralmente en celular para ver la semana.</p>
+          <p className="text-muted text-xs sm:text-sm px-2 text-center mb-1">Desliza lateralmente en celular para ver la semana.</p>
         </div>
         
-        <button 
-          onClick={toggleModoBloqueo}
-          disabled={guardando}
-          className={`px-5 py-2.5 rounded-full flex items-center gap-2 transition-all font-bold shadow-sm border-2 disabled:opacity-50 ${
-            modoBloqueo 
-              ? 'bg-danger text-white border-danger animate-pulse' 
-              : 'bg-white text-dark border-gray-200 hover:border-gray-300'
-          }`}
-        >
-          {modoBloqueo ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
-          <span className="hidden sm:inline">
-            {guardando ? 'Guardando...' : (modoBloqueo ? 'Guardar Cambios' : 'Bloquear Días')}
-          </span>
-        </button>
       </div>
 
       {modoBloqueo && (
