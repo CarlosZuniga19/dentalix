@@ -27,6 +27,34 @@ const DIENTES_ADULTOS = [
   48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38
 ];
 
+// Diccionario Anatómico Exacto basado en la imagen de referencia (Outline y Línea Cervical)
+const getToothData = (diente) => {
+  const type = diente % 10;
+  const isUpper = diente >= 11 && diente <= 28;
+  
+  let paths = { d: "", c: "" };
+  if (isUpper) {
+    if (type === 1) paths = { d: "M35,80 Q40,140 45,145 Q50,145 55,145 Q60,140 65,80 Q70,40 55,10 Q50,5 45,10 Q30,40 35,80 Z", c: "M35,80 Q50,70 65,80" };
+    else if (type === 2) paths = { d: "M38,80 Q42,135 46,140 Q50,140 54,140 Q58,135 62,80 Q66,40 54,12 Q50,7 46,12 Q34,40 38,80 Z", c: "M38,80 Q50,72 62,80" };
+    else if (type === 3) paths = { d: "M35,80 Q35,120 50,145 Q65,120 65,80 Q75,30 55,10 Q50,5 45,10 Q25,30 35,80 Z", c: "M35,80 Q50,68 65,80" };
+    else if (type === 4) paths = { d: "M30,80 Q35,130 45,135 Q50,125 55,135 Q65,130 70,80 Q80,30 55,10 Q50,5 45,10 Q20,30 30,80 Z", c: "M30,80 Q50,68 70,80" };
+    else if (type === 5) paths = { d: "M32,80 Q35,125 45,130 Q50,120 55,130 Q65,125 68,80 Q75,30 55,10 Q50,5 45,10 Q25,30 32,80 Z", c: "M32,80 Q50,68 68,80" };
+    else if (type === 6) paths = { d: "M20,80 Q25,130 35,135 Q40,125 50,130 Q60,125 65,135 Q75,130 80,80 Q90,30 75,10 Q70,5 65,25 Q60,40 55,40 Q50,15 45,15 Q40,40 35,40 Q30,25 25,10 Q20,5 10,30 Q20,80 20,80 Z", c: "M20,80 Q50,65 80,80" };
+    else if (type === 7) paths = { d: "M22,80 Q25,125 35,130 Q40,120 50,125 Q60,120 65,130 Q75,125 78,80 Q85,30 75,15 Q70,10 65,30 Q60,45 55,45 Q50,20 45,20 Q40,45 35,45 Q30,30 25,15 Q20,10 12,30 Q22,80 22,80 Z", c: "M22,80 Q50,65 78,80" };
+    else if (type === 8) paths = { d: "M25,80 Q25,120 35,125 Q40,115 50,120 Q60,115 65,125 Q75,120 75,80 Q80,40 70,20 Q65,15 60,35 Q55,50 50,50 Q45,25 40,25 Q35,50 30,50 Q25,35 20,20 Q15,15 15,35 Q25,80 25,80 Z", c: "M25,80 Q50,65 75,80" };
+  } else {
+    if (type === 1) paths = { d: "M35,70 Q40,10 45,5 Q50,5 55,5 Q60,10 65,70 Q70,110 55,140 Q50,145 45,140 Q30,110 35,70 Z", c: "M35,70 Q50,80 65,70" };
+    else if (type === 2) paths = { d: "M34,70 Q38,10 45,5 Q50,5 56,5 Q62,10 66,70 Q70,110 55,140 Q50,145 45,140 Q30,110 34,70 Z", c: "M34,70 Q50,80 66,70" };
+    else if (type === 3) paths = { d: "M35,70 Q35,30 50,5 Q65,30 65,70 Q75,120 55,140 Q50,145 45,140 Q25,120 35,70 Z", c: "M35,70 Q50,82 65,70" };
+    else if (type === 4) paths = { d: "M30,70 Q35,20 45,15 Q50,25 55,15 Q65,20 70,70 Q80,120 55,140 Q50,145 45,140 Q20,120 30,70 Z", c: "M30,70 Q50,82 70,70" };
+    else if (type === 5) paths = { d: "M32,70 Q35,25 45,20 Q50,30 55,20 Q65,25 68,70 Q75,120 55,140 Q50,145 45,140 Q25,120 32,70 Z", c: "M32,70 Q50,82 68,70" };
+    else if (type === 6) paths = { d: "M20,70 Q25,20 35,15 Q40,25 50,20 Q60,25 65,15 Q75,20 80,70 Q90,110 80,140 Q75,145 65,110 Q50,90 35,110 Q25,145 20,140 Q10,110 20,70 Z", c: "M20,70 Q50,85 80,70" };
+    else if (type === 7) paths = { d: "M22,70 Q25,25 35,20 Q40,30 50,25 Q60,30 65,20 Q75,25 78,70 Q85,105 75,135 Q70,140 60,110 Q50,95 40,110 Q30,140 25,135 Q15,105 22,70 Z", c: "M22,70 Q50,85 78,70" };
+    else if (type === 8) paths = { d: "M25,70 Q25,30 35,25 Q40,35 50,30 Q60,35 65,25 Q75,30 75,70 Q80,100 70,125 Q65,130 55,110 Q50,100 45,110 Q35,130 30,125 Q20,100 25,70 Z", c: "M25,70 Q50,85 75,70" };
+  }
+  return paths;
+};
+
 export default function Pacientes() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -184,8 +212,7 @@ export default function Pacientes() {
       } catch (err) { console.error(err); }
     }
   };
-
-  // Función actualizada para cerrar automáticamente el modal al elegir
+  
   const aplicarCondicionDental = (condicion) => {
     if (!dienteActivoHistorial) return;
     setHistorialOdontograma({ ...historialOdontograma, [dienteActivoHistorial]: condicion });
@@ -487,19 +514,57 @@ export default function Pacientes() {
 
         <section>
           <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">Historial Dental (Odontograma)</h2>
-          <div className="bg-surface p-4 rounded-2xl border border-gray-200 overflow-x-auto relative">
-            <p className="text-xs text-muted text-center mb-4">Toca un diente para asignarle un padecimiento.</p>
-            <div className="min-w-[600px] flex flex-col gap-6 items-center">
-              <div className="flex gap-1 justify-center w-full">
-                {DIENTES_ADULTOS.slice(0, 16).map(diente => (
-                  <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="w-8 h-10 bg-white border-2 border-gray-300 rounded hover:border-primary flex items-center justify-center font-bold text-xs shadow-sm transition-all relative overflow-hidden"><div className="absolute inset-0 opacity-40" style={{ backgroundColor: historialOdontograma[diente]?.color || 'transparent' }}></div><span className="relative z-10">{diente}</span></button>
-                ))}
+          <div className="bg-surface p-2 sm:p-4 rounded-2xl border border-gray-200 overflow-hidden w-full">
+            <p className="text-xs text-muted text-center mb-6">Toca un diente para asignarle un padecimiento.</p>
+            
+            <div className="w-full flex flex-col gap-6 items-center px-0.5">
+              
+              {/* FILA SUPERIOR (Maxilar) */}
+              <div className="flex justify-between w-full gap-[1px] sm:gap-1">
+                {DIENTES_ADULTOS.slice(0, 16).map(diente => {
+                  const condicion = historialOdontograma[diente];
+                  const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+                  const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151'; 
+                  const { d, c } = getToothData(diente);
+                  const isMirrored = [21,22,23,24,25,26,27,28].includes(diente);
+                  
+                  return (
+                    <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="flex-1 flex flex-col items-center gap-1 sm:gap-2 group outline-none">
+                      <span className="text-[9px] sm:text-xs font-bold transition-colors" style={{ color: textColor }}>{diente}</span>
+                      <div className="w-full flex justify-center">
+                        <svg viewBox="0 0 100 150" className={`w-full h-auto drop-shadow-sm group-hover:scale-110 transition-transform origin-center ${isMirrored ? '-scale-x-100' : ''}`}>
+                          <path d={d} fill={fillColor} stroke="#4B5563" strokeWidth="3" strokeLinejoin="round" />
+                          <path d={c} fill="none" stroke="#4B5563" strokeWidth="3" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
-              <div className="flex gap-1 justify-center w-full">
-                {DIENTES_ADULTOS.slice(16, 32).map(diente => (
-                  <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="w-8 h-10 bg-white border-2 border-gray-300 rounded hover:border-primary flex items-center justify-center font-bold text-xs shadow-sm transition-all relative overflow-hidden"><div className="absolute inset-0 opacity-40" style={{ backgroundColor: historialOdontograma[diente]?.color || 'transparent' }}></div><span className="relative z-10">{diente}</span></button>
-                ))}
+
+              {/* FILA INFERIOR (Mandíbula) */}
+              <div className="flex justify-between w-full gap-[1px] sm:gap-1">
+                {DIENTES_ADULTOS.slice(16, 32).map(diente => {
+                  const condicion = historialOdontograma[diente];
+                  const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+                  const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+                  const { d, c } = getToothData(diente);
+                  const isMirrored = [31,32,33,34,35,36,37,38].includes(diente);
+                  
+                  return (
+                    <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="flex-1 flex flex-col items-center gap-1 sm:gap-2 group outline-none">
+                      <div className="w-full flex justify-center">
+                        <svg viewBox="0 0 100 150" className={`w-full h-auto drop-shadow-sm group-hover:scale-110 transition-transform origin-center ${isMirrored ? '-scale-x-100' : ''}`}>
+                          <path d={d} fill={fillColor} stroke="#4B5563" strokeWidth="3" strokeLinejoin="round" />
+                          <path d={c} fill="none" stroke="#4B5563" strokeWidth="3" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                      <span className="text-[9px] sm:text-xs font-bold transition-colors" style={{ color: textColor }}>{diente}</span>
+                    </button>
+                  )
+                })}
               </div>
+
             </div>
 
             {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
