@@ -10,8 +10,8 @@ export default defineConfig({
       manifest: {
         name: 'Dentalix',
         short_name: 'Dentalix',
-        description: 'Sistema de Gestión Dental',
-        theme_color: '#8B5CF6',
+        description: 'Sistema de Gestión Clínica',
+        theme_color: '#FFFFFF', /* Cambiado a blanco para que la barra se camufle bien */
         background_color: '#FFFFFF',
         display: 'standalone',
         icons: [
@@ -25,6 +25,11 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
+          },
+          {
+            src: 'apple-icon.png',
+            sizes: '180x180',
+            type: 'image/png'
           }
         ]
       }

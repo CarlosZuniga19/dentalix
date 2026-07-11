@@ -3,18 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
-    <link rel="apple-touch-icon" href="/favicon.svg?v=2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
+    
+    <link rel="apple-touch-icon" href="/apple-icon.png?v=3" />
     
     <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)" />
     
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>dentalix-frontend</title>
     <style>
+      /* Ajuste para que la barra de estado transparente no tape tu app */
+      body {
+        padding-top: env(safe-area-inset-top);
+      }
+
       /* Regla Maestra para Modo Oscuro Dentalix */
       html.dark body { background-color: #111827 !important; color: #f9fafb !important; }
       html.dark .bg-white, html.dark .bg-surface { background-color: #1f2937 !important; border-color: #374151 !important; }
