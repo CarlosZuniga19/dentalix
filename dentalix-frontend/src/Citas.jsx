@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Check, FileDown, MessageCircle, Search, Upload } from 'lucide-react';
+import { Plus, X, Check, FileDown, MessageCircle, Search } from 'lucide-react';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- Corregido el import de autoTable para el PDF
+import autoTable from 'jspdf-autotable';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const ANAMNESIS_ITEMS = [ "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le han practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas" ];
@@ -15,6 +15,7 @@ export default function Citas() {
   const [busquedaPaciente, setBusquedaPaciente] = useState('');
   const [pacienteSeleccionado, setPacienteSeleccionado] = useState(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const API_URL = 'https://dentalix.lat/api.php';
 
@@ -28,13 +29,11 @@ export default function Citas() {
   const [abono, setAbono] = useState('');
   const [anamnesis, setAnamnesis] = useState(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
 
-  // ================= 1. CARGA INICIAL =================
-  useEffect(() => {
+  // Función para recargar la lista de citas por debajo del agua
+  const recargarCitas = () => {
     fetch(`${API_URL}?accion=citas_lista`)
       .then(res => res.json())
       .then(data => {
-        // Agrupación Inteligente: Si un paciente tiene varias citas en la misma fecha, 
-        // las unificamos visualmente en la lista de pendientes.
         const citasCargadas = data || [];
         const citasAgrupadas = citasCargadas.reduce((acc, cita) => {
           const claveUnica = `${cita.id_paciente}-${cita.fecha}`;
@@ -45,20 +44,44 @@ export default function Citas() {
           }
           return acc;
         }, {});
-        
         setCitas(Object.values(citasAgrupadas));
-
-        if (location.state?.citaIdParaEditar) {
-          const citaEncontrada = citasCargadas.find(c => Number(c.id_cita) === Number(location.state.citaIdParaEditar));
-          if (citaEncontrada) {
-            abrirEdicionCita(citaEncontrada);
-            window.history.replaceState({}, document.title);
-          }
-        }
       });
+  };
 
+  // ================= 1. CARGA INICIAL =================
+  useEffect(() => {
+    recargarCitas();
     fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setPacientesExistentes(data || []));
     fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
+
+    // LÓGICA DE NAVEGACIÓN Y LIMPIEZA DE ROUTER
+    if (location.state?.citaIdParaEditar) {
+      // Se resolvió en un useEffect separado o aquí al inicio, pero requerimos que el fetch termine primero
+      fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => {
+        const citaEncontrada = data.find(c => Number(c.id_cita) === Number(location.state.citaIdParaEditar));
+        if (citaEncontrada) {
+          abrirEdicionCita(citaEncontrada);
+        }
+        // Borramos el recuerdo para que el botón "Cancelar" sí funcione
+        navigate(location.pathname, { replace: true, state: {} });
+      });
+    } else if (location.state?.pacientePreseleccionado) {
+      const p = location.state.pacientePreseleccionado;
+      setPacienteSeleccionado(p);
+      setDatosPaciente({
+        id: p.id, 
+        nombre: p.nombre || '', 
+        telefono: p.telefono || '', 
+        notas: p.notas || '',
+        fechaNacimiento: p.fechaNacimiento || p.fecha_nacimiento || '', 
+        direccion: p.direccion || '',
+        ocupacion: p.ocupacion || '', 
+        motivo: p.motivo || p.motivo_consulta || ''
+      });
+      setVista('nueva_cita');
+      // Borramos el recuerdo para que el botón "Cancelar" sí funcione
+      navigate(location.pathname, { replace: true, state: {} });
+    }
   }, [vista]);
 
   const pacientesFiltrados = pacientesExistentes.filter(p => p.nombre.toLowerCase().includes(busquedaPaciente.toLowerCase())).slice(0, 10);
@@ -82,7 +105,7 @@ export default function Citas() {
     setBusquedaPaciente('');
   };
 
-  // ================= 2. EXTRACCIÓN DE PROCEDIMIENTOS AL EDITAR =================
+  // ================= 2. EXTRACCIÓN Y AGRUPACIÓN DE PROCEDIMIENTOS AL EDITAR =================
   const abrirEdicionCita = (c) => {
     resetFormulario();
     setIdCitaEditando(c.id_cita);
@@ -93,18 +116,29 @@ export default function Citas() {
     const objPaciente = {
       id: c.id_paciente, nombre: c.paciente, telefono: c.telefono || '',
       fechaNacimiento: c.fecha_nacimiento || '', direccion: c.direccion || '',
-      ocupacion: c.ocupacion || '', motivo: c.motivo_consulta || '', notas: c.notas || ''
+      ocupacion: c.ocupacion || '', motivo: c.motivo_consulta || '', notas: c.notes || ''
     };
     
     setPacienteSeleccionado(objPaciente);
     setDatosPaciente(objPaciente);
 
-    // Consulta Quirúrgica: Preguntamos a la BD qué procedimientos están amarrados a este paciente en esta fecha específica
     fetch(`${API_URL}?accion=procedimientos_paciente&id_paciente=${c.id_paciente}`)
       .then(res => res.json())
       .then(data => {
         const procsDeEstaCita = (data || []).filter(p => p.fecha_procedimiento === c.fecha);
-        setProcedimientosSeleccionados(procsDeEstaCita);
+        
+        // Magia: Agrupamos las filas idénticas de la DB en cantidades para la interfaz visual
+        const procsAgrupados = procsDeEstaCita.reduce((acc, proc) => {
+          const existente = acc.find(p => p.id === proc.id);
+          if (existente) {
+            existente.cantidad += 1;
+          } else {
+            acc.push({ ...proc, cantidad: 1 });
+          }
+          return acc;
+        }, []);
+
+        setProcedimientosSeleccionados(procsAgrupados);
       });
 
     setVista('nueva_cita');
@@ -114,10 +148,25 @@ export default function Citas() {
     if (!datosPaciente.nombre) { alert("Debes seleccionar o escribir un paciente."); return; }
     if (!fecha || !hora) { alert("Fecha y hora son obligatorios."); return; }
 
+    // Magia: Desempaquetamos las cantidades antes de mandarlas a PHP
+    // Si el usuario eligió "4", creamos 4 filas idénticas en el arreglo
+    const procedimientosExpandidos = [];
+    procedimientosSeleccionados.forEach(p => {
+      for (let i = 0; i < (p.cantidad || 1); i++) {
+        procedimientosExpandidos.push({
+          id: p.id,
+          precio_base: p.precio_base,
+          // Ya no hay inputs individuales, se fuerza la fecha y hora general de la cita
+          fecha_procedimiento: fecha,
+          hora_procedimiento: hora 
+        });
+      }
+    });
+
     const payload = {
       paciente: datosPaciente,
       cita: { id: idCitaEditando, fecha, hora, estado: estadoCita },
-      procedimientos: procedimientosSeleccionados // <-- Guardamos los procedimientos si se editaron o agregaron nuevos desde aquí
+      procedimientos: procedimientosExpandidos 
     };
 
     fetch(`${API_URL}?accion=guardar_paciente_cita`, {
@@ -128,16 +177,18 @@ export default function Citas() {
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        setVista('lista');
+        alert("Cita y procedimientos guardados exitosamente.");
         resetFormulario();
+        recargarCitas(); // Refresca en el fondo
+        // NO cambiamos setVista('lista'), dejamos al usuario en 'nueva_cita' limpia
       } else { alert("Error: " + data.error); }
     });
   };
 
-  const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + parseFloat(proc.precio_base || 0), 0);
+  const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + (parseFloat(proc.precio_base || 0) * (proc.cantidad || 1)), 0);
   const totalAPagar = totalProcedimientos - (parseFloat(abono) || 0);
 
-  // ================= 3. GENERADOR DE PDF REPARADO =================
+  // ================= 3. GENERADOR DE PDF =================
   const generarPresupuestoPDF = () => {
     const doc = new jsPDF();
     const primaryColor = [139, 92, 246]; 
@@ -167,14 +218,14 @@ export default function Citas() {
     const tableData = procedimientosSeleccionados.map((p, idx) => [
       (idx + 1).toString().padStart(2, '0'),
       p.nombre,
-      p.fecha_procedimiento ? p.fecha_procedimiento.split('-').reverse().join('/') : fecha.split('-').reverse().join('/'),
+      p.cantidad.toString(),
       `$${parseFloat(p.precio_base).toFixed(2)}`,
-      `$${parseFloat(p.precio_base).toFixed(2)}`
+      `$${(parseFloat(p.precio_base) * (p.cantidad || 1)).toFixed(2)}`
     ]);
 
     autoTable(doc, {
       startY: 75,
-      head: [['No.', 'Descripción del Servicio', 'Fecha Prog.', 'Costo', 'Total']],
+      head: [['No.', 'Descripción del Servicio', 'Cant.', 'Costo Unit.', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: primaryColor, textColor: 255 },
@@ -227,7 +278,6 @@ export default function Citas() {
                 onClick={() => abrirEdicionCita(c)}
                 className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex justify-between items-center hover:bg-surface/60 hover:border-primary/30 transition-all cursor-pointer group relative overflow-hidden"
               >
-                {/* Indicador visual de cita agrupada */}
                 {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary" title="Múltiples procedimientos en esta fecha"></div>}
                 
                 <div className="flex items-center gap-4">
@@ -258,7 +308,7 @@ export default function Citas() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 space-y-6">
-      <button onClick={() => { setVista('lista'); resetFormulario(); }} className="text-muted hover:text-dark font-medium flex items-center gap-2">
+      <button onClick={() => { resetFormulario(); navigate('/citas', { replace: true, state: {} }); setVista('lista'); }} className="text-muted hover:text-dark font-medium flex items-center gap-2">
         <X size={18} /> Cancelar y regresar a la lista
       </button>
 
@@ -289,7 +339,10 @@ export default function Citas() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          
+          {/* AÑADIDO: step="900" obliga al selector nativo a mostrar intervalos de 15 minutos */}
+          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" step="900" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" value={profesional} onChange={e => setProfesional(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
         </section>
 
@@ -316,7 +369,7 @@ export default function Citas() {
           </div>
         </section>
 
-        {/* --- PROCEDIMIENTOS ASIGNADOS (CON HORAS DINÁMICAS) --- */}
+        {/* --- PROCEDIMIENTOS ASIGNADOS CON SELECTOR DE CANTIDAD --- */}
         <section>
           <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
             Procedimientos Programados
@@ -330,8 +383,7 @@ export default function Citas() {
                   if (procedimientosSeleccionados.find(p => p.id === proc.id)) {
                     setProcedimientosSeleccionados(procedimientosSeleccionados.filter(p => p.id !== proc.id));
                   } else { 
-                    // Si se añade desde Citas, le asignamos la misma fecha de la cita general por defecto
-                    setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, fecha_procedimiento: fecha, hora_procedimiento: hora }]); 
+                    setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, cantidad: 1 }]); 
                   }
                 }} className="w-5 h-5 accent-primary" />
                 <span className="flex-1 text-sm font-medium">{proc.nombre}</span>
@@ -345,17 +397,24 @@ export default function Citas() {
               {procedimientosSeleccionados.map(p => (
                 <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
                   <span className="font-bold text-dark flex-1">{p.nombre}</span>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted font-bold">Fecha:</label>
-                      <input type="date" value={p.fecha_procedimiento || ''} onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, fecha_procedimiento: e.target.value} : proc))} className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted font-bold">Hora:</label>
-                      <input type="time" value={p.hora_procedimiento || ''} onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, hora_procedimiento: e.target.value} : proc))} className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary" />
-                    </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold text-muted">Cantidad:</label>
+                    <select 
+                      value={p.cantidad || 1} 
+                      onChange={(e) => {
+                        const nuevaCant = parseInt(e.target.value);
+                        setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? { ...proc, cantidad: nuevaCant } : proc));
+                      }} 
+                      className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark focus:border-primary outline-none"
+                    >
+                      {[1,2,3,4,5,6,7,8,9,10,12,15,20].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
                   </div>
-                  <span className="font-black text-primary md:w-20 md:text-right">${parseFloat(p.precio_base).toFixed(2)}</span>
+                  
+                  <span className="font-black text-primary md:w-24 md:text-right">
+                    ${(parseFloat(p.precio_base) * (p.cantidad || 1)).toFixed(2)}
+                  </span>
                 </div>
               ))}
               <div className="flex justify-between text-lg font-black text-primary mt-4 pt-3 border-t">
