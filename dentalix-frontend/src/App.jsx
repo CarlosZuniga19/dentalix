@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link } from 'react-router-dom';
-// Eliminamos Menu y X ya que no usaremos el botón de hamburguesa
 import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
@@ -29,33 +28,35 @@ function Layout({ children, nombreClinica }) {
           {nombreClinica}
         </Link>
         
-        <NavItem to="/" icon={<Calendar />} label="Calendario" />
+        {/* REORDENADO: "Hoy" es el primero y es la ruta raíz */}
+        <NavItem to="/" icon={<Bell />} label="Hoy" />
+        <NavItem to="/calendario" icon={<Calendar />} label="Calendario" />
         <NavItem to="/agenda" icon={<Clock />} label="Agenda" />
         <NavItem to="/citas" icon={<ClipboardList />} label="Citas" />
         <NavItem to="/pacientes" icon={<Users />} label="Pacientes" />
         <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" />
-        <NavItem to="/recordatorios" icon={<Bell />} label="Recordatorios" />
         <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
-      {/* ÁREA DE CONTENIDO (Aumentamos a mb-28 para que la cápsula flotante no tape el contenido al hacer scroll hasta abajo) */}
+      {/* ÁREA DE CONTENIDO */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 mb-28 md:mb-0 bg-surface relative">
         {children}
       </main>
 
-      {/* NUEVA BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
+      {/* BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
       <div className="md:hidden fixed bottom-6 left-0 w-full px-4 z-50 flex justify-center pointer-events-none">
         <nav 
           className="bg-background/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
           style={{ scrollbarWidth: 'none' }}
         >
           <div className="flex min-w-max px-2 py-1">
-            <MobileNavItem to="/" icon={<Calendar size={22} />} label="Calendario" />
+            {/* REORDENADO: "Hoy" es el primero y es la ruta raíz */}
+            <MobileNavItem to="/" icon={<Bell size={22} />} label="Hoy" />
+            <MobileNavItem to="/calendario" icon={<Calendar size={22} />} label="Calendario" />
             <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
             <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
             <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
             <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
-            <MobileNavItem to="/recordatorios" icon={<Bell size={22} />} label="Recordatorios" />
             <MobileNavItem to="/ajustes" icon={<Settings size={22} />} label="Ajustes" />
           </div>
         </nav>
@@ -148,12 +149,13 @@ export default function App() {
     <Router>
       <Layout nombreClinica={nombreClinica}>
         <Routes>
-          <Route path="/" element={<Calendario />} />
+          {/* REORDENADO: Ruta raíz apunta a Recordatorios ("Hoy") */}
+          <Route path="/" element={<Recordatorios />} />
+          <Route path="/calendario" element={<Calendario />} />
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/citas" element={<Citas />} />
           <Route path="/pacientes" element={<Pacientes />} />
           <Route path="/procedimientos" element={<Procedimientos />} />
-          <Route path="/recordatorios" element={<Recordatorios />} />
           <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} />} />
         </Routes>
       </Layout>
