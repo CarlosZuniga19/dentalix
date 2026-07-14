@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, FileDown, MessageCircle, Trash2 } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -40,22 +40,10 @@ export default function Pacientes() {
   const [busquedaP, setBusquedaP] = useState('');
   const [todasLasCitas, setTodasLasCitas] = useState([]);
   
-  // ================= ESTADOS DEL FORMULARIO =================
-  const [fecha, setFecha] = useState('');
-  const [hora, setHora] = useState('');
-  const [profesional, setProfesional] = useState('');
-  const [estadoCita, setEstadoCita] = useState(['programado']);
-  
   const [datosPaciente, setDatosPaciente] = useState({
     nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: ''
   });
 
-  const [procedimientosSeleccionados, setProcedimientosSeleccionados] = useState([]);
-  
-  const [montoAbono, setMontoAbono] = useState('');
-  const [destinoAbono, setDestinoAbono] = useState('total');
-  const [pagosAgregados, setPagosAgregados] = useState([]);
-  
   const [tratamientosGuardados, setTratamientosGuardados] = useState([]);
   const [modalTratamiento, setModalTratamiento] = useState(false);
   const [tratamientoTemp, setTratamientoTemp] = useState({ fecha: '', hora: '', procedimientos: [], dientes: [] });
@@ -64,6 +52,7 @@ export default function Pacientes() {
   const [dienteActivoHistorial, setDienteActivoHistorial] = useState(null);
   
   const [imagenes, setImagenes] = useState([]);
+  const [archivosLocales, setArchivosLocales] = useState([]);
   const [imagenEnGrande, setImagenEnGrande] = useState(null);
 
   const [anamnesis, setAnamnesis] = useState(
@@ -77,21 +66,14 @@ export default function Pacientes() {
     fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => setTodasLasCitas(data || []));
   }, [vista]);
 
-  // Cálculos dinámicos
-  const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + parseFloat(proc.precio_base || 0), 0);
-  const totalAbonado = pagosAgregados.reduce((sum, pago) => sum + pago.monto, 0);
-  const totalAPagar = totalProcedimientos - totalAbonado;
-
   const cargarImagenes = (idPaciente) => {
     fetch(`${API_URL}?accion=imagenes&id_paciente=${idPaciente}`).then(res => res.json()).then(data => setImagenes(data || []));
   };
 
   const handleNuevoPaciente = () => {
     setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
-    setFecha(''); setHora(''); setEstadoCita(['programado']);
-    setProcedimientosSeleccionados([]); 
-    setPagosAgregados([]); setMontoAbono(''); setDestinoAbono('total');
     setImagenes([]); 
+    setArchivosLocales([]);
     setHistorialOdontograma({});
     setTratamientosGuardados([]);
     setAnamnesis(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
@@ -103,15 +85,7 @@ export default function Pacientes() {
       id: p.id, nombre: p.nombre || '', telefono: p.telefono || '', notas: p.notas || '',
       fechaNacimiento: p.fecha_nacimiento || '', direccion: p.direccion || '', ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
     });
-    setFecha(''); setHora(''); setEstadoCita(['programado']);
-    
-    fetch(`${API_URL}?accion=procedimientos_paciente&id_paciente=${p.id}`)
-      .then(res => res.json())
-      .then(data => setProcedimientosSeleccionados(data || []));
-
-    fetch(`${API_URL}?accion=pagos_paciente&id_paciente=${p.id}`)
-      .then(res => res.json())
-      .then(data => setPagosAgregados(data || []));
+    setArchivosLocales([]);
 
     fetch(`${API_URL}?accion=expediente_clinico&id_paciente=${p.id}`)
       .then(res => res.json())
@@ -137,27 +111,6 @@ export default function Pacientes() {
     setVista('editar');
   };
 
-  const toggleProcedimientoPrincipal = (proc) => {
-    if (procedimientosSeleccionados.find(p => p.id === proc.id)) {
-      setProcedimientosSeleccionados(procedimientosSeleccionados.filter(p => p.id !== proc.id));
-      setPagosAgregados(pagosAgregados.filter(pago => pago.id_destino != proc.id));
-    } else {
-      setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, fecha_procedimiento: '', hora_procedimiento: '' }]);
-    }
-  };
-
-  const agregarAbono = () => {
-    if (!montoAbono || parseFloat(montoAbono) <= 0) return;
-    const destinoNombre = destinoAbono === 'total' ? 'Abono al Total' : procedimientosSeleccionados.find(p => p.id == destinoAbono)?.nombre;
-    setPagosAgregados([...pagosAgregados, { 
-      id: Date.now(), 
-      monto: parseFloat(montoAbono), 
-      id_destino: destinoAbono === 'total' ? null : destinoAbono, 
-      destinoNombre 
-    }]);
-    setMontoAbono('');
-  };
-
   const handleAnamnesisClick = (idx) => {
     const actual = anamnesis[idx].estado;
     let nuevo = '?';
@@ -166,11 +119,17 @@ export default function Pacientes() {
   };
 
   const handleImagenUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    
+    // Si el paciente NO existe aún, guardamos las fotos localmente en previsualización
     if (!datosPaciente.id) {
-      alert("Por favor, dale a 'Guardar Expediente' primero para registrar al paciente. Después podrás subirle las imágenes.");
+      setArchivosLocales(prev => [...prev, ...files]);
+      const previews = files.map(file => ({ ruta_imagen: URL.createObjectURL(file), es_local: true }));
+      setImagenes(prev => [...prev, ...previews]);
       return;
     }
-    const files = Array.from(e.target.files);
+
+    // Si el paciente YA existe, lógica original de subida directa
     for (const file of files) {
       const formData = new FormData();
       formData.append('imagen', file);
@@ -195,105 +154,62 @@ export default function Pacientes() {
     setTratamientoTemp({ fecha: '', hora: '', procedimientos: [], dientes: [] });
   };
 
-  const guardarCitaYRegresar = () => {
+  const guardarExpedienteYRegresar = async () => {
     if (!datosPaciente.nombre) { alert("El nombre del paciente es obligatorio."); return; }
-    if ((fecha && !hora) || (!fecha && hora)) { alert("Si vas a programar una cita, debes ingresar la fecha y la hora completas."); return; }
 
     const payload = {
       paciente: datosPaciente,
-      cita: { fecha, hora, estado: estadoCita },
-      procedimientos: procedimientosSeleccionados,
-      pagos: pagosAgregados,
+      cita: { fecha: '', hora: '', estado: ['programado'] }, 
+      procedimientos: [], 
+      pagos: [], 
       anamnesis: anamnesis,
       historialOdontograma: historialOdontograma,
       tratamientosGuardados: tratamientosGuardados
     };
 
-    fetch(`${API_URL}?accion=guardar_paciente_cita`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) setVista('lista'); else alert("Error al guardar: " + data.mensaje);
-    })
-    .catch(() => alert("Error de conexión al servidor."));
+    try {
+      const res = await fetch(`${API_URL}?accion=guardar_paciente_cita`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const textData = await res.text();
+      let data;
+      
+      try {
+        data = JSON.parse(textData);
+      } catch (e) {
+        console.error("Crash del servidor PHP detectado:", textData);
+        alert("Ocurrió un error interno en el servidor PHP. Revisa la consola.");
+        return;
+      }
+
+      if (data.success) {
+        const idPacienteReal = datosPaciente.id || data.id_paciente || data.id;
+
+        // Subimos las imágenes que estaban en cola esperando el ID del paciente nuevo
+        if (archivosLocales.length > 0 && idPacienteReal) {
+          for (const file of archivosLocales) {
+            const formData = new FormData();
+            formData.append('imagen', file);
+            formData.append('id_paciente', idPacienteReal);
+            await fetch(`${API_URL}?accion=subir_imagen`, { method: 'POST', body: formData });
+          }
+        }
+        
+        setVista('lista');
+      } else {
+        alert("Error al guardar: " + (data.error || data.mensaje || "Error desconocido devuelto por la base de datos."));
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+      alert("Error de conexión al servidor.");
+    }
   };
 
-  // ================= GENERACIÓN DE PRESUPUESTO (PDF) =================
-  const generarPresupuestoPDF = () => {
-    const doc = new jsPDF();
-    const primaryColor = [139, 92, 246]; 
-    
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, 210, 35, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("PRESUPUESTO DENTAL", 14, 23);
-    
-    doc.setFontSize(10);
-    doc.text("DENTALIX CLÍNICA", 155, 23);
-
-    doc.setTextColor(...primaryColor);
-    doc.setFontSize(12);
-    doc.text("PACIENTE", 14, 48);
-    
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Nombre: ${datosPaciente.nombre || '_________________'}`, 14, 56);
-    doc.text(`Dirección: ${datosPaciente.direccion || '_________________'}`, 14, 62);
-    doc.text(`Teléfono: ${datosPaciente.telefono || '_________________'}`, 110, 56);
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-MX')}`, 110, 62);
-
-    const tableData = procedimientosSeleccionados.map((p, idx) => [
-      (idx + 1).toString().padStart(2, '0'),
-      p.nombre,
-      p.fecha_procedimiento ? `${p.fecha_procedimiento.split('-').reverse().join('/')} ${p.hora_procedimiento ? p.hora_procedimiento : ''}` : 'Por definir',
-      `$${parseFloat(p.precio_base).toFixed(2)}`,
-      `$${parseFloat(p.precio_base).toFixed(2)}`
-    ]);
-
-    autoTable(doc, {
-      startY: 75,
-      head: [['No.', 'Descripción del Servicio', 'Cita Prog.', 'Costo', 'Total']],
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: primaryColor, textColor: 255 },
-      styles: { fontSize: 9 }
-    });
-
-    const finalY = doc.lastAutoTable.finalY + 15;
-    
-    doc.setFillColor(245, 245, 245); 
-    doc.rect(120, finalY - 5, 75, 25, 'F');
-    
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.text(`Subtotal:`, 125, finalY);
-    doc.text(`$${totalProcedimientos.toFixed(2)}`, 165, finalY);
-
-    doc.setTextColor(220, 38, 38); 
-    doc.text(`Abonos:`, 125, finalY + 6);
-    doc.text(`-$${totalAbonado.toFixed(2)}`, 165, finalY + 6);
-    
-    doc.setFillColor(...primaryColor);
-    doc.rect(120, finalY + 10, 75, 10, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.text(`SALDO RESTANTE:`, 125, finalY + 16.5);
-    doc.text(`$${totalAPagar > 0 ? totalAPagar.toFixed(2) : '0.00'}`, 165, finalY + 16.5);
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(9);
-    doc.text("Gracias por elegir nuestra clínica.", 14, finalY + 10);
-    
-    doc.line(130, finalY + 45, 185, finalY + 45);
-    doc.text("Firma del Paciente", 143, finalY + 50);
-
-    doc.save(`Presupuesto_${datosPaciente.nombre || 'Paciente'}.pdf`);
+  const irACrearCita = () => {
+    navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
   // ================= VISTA: LISTA DE PACIENTES =================
@@ -337,23 +253,23 @@ export default function Pacientes() {
         <X size={18} /> Cancelar y regresar a la lista
       </button>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
-        
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" list="profesionales" value={profesional} onChange={e => setProfesional(e.target.value)} placeholder="Dra. Hasdra..." className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /><datalist id="profesionales"><option value="Dra. Hasdra Guerrero" /><option value="Dr. Invitado" /></datalist></div>
-        </section>
+      {/* --- BOTÓN DE CREAR CITA (SOLO VISIBLE SI EL PACIENTE EXISTE) --- */}
+      {datosPaciente.id && (
+        <div className="bg-[#E8F8F5] border border-[#A2D9CE] rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div>
+            <h3 className="font-bold text-[#117A65] text-lg">¿El paciente necesita agendar?</h3>
+            <p className="text-sm text-[#148F77]">Ir al módulo de agenda para presupuestar procedimientos o asignar pagos a este paciente.</p>
+          </div>
+          <button onClick={irACrearCita} className="bg-[#117A65] hover:bg-[#0E6251] text-white px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold shadow-sm transition-colors w-full sm:w-auto shrink-0">
+            <CalendarIcon size={20} /> Asignarle una Cita a {datosPaciente.nombre.split(' ')[0]}
+          </button>
+        </div>
+      )}
 
-        <section className="p-4 bg-surface rounded-2xl border border-primary/20">
-          <label className="block text-sm font-bold text-primary mb-2">Estado de la Cita (Multiselect)</label>
-          <select multiple value={estadoCita} onChange={e => setEstadoCita(Array.from(e.target.selectedOptions, option => option.value))} className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-primary text-dark" size="5">
-            <option value="programado">Programado</option><option value="solicitado">Solicitado</option><option value="llegó">El paciente llegó</option><option value="no_presento">No se presentó</option><option value="cancelado">Cancelado</option>
-          </select>
-        </section>
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">{datosPaciente.id ? "Editando Datos del Paciente" : "Paciente Nuevo"}</h2>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
@@ -366,123 +282,19 @@ export default function Pacientes() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">Asignar Procedimientos al Paciente</h2>
-          <div className="bg-surface p-4 rounded-xl border border-gray-200 max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {catalogoProcedimientos.map(proc => (
-              <label key={proc.id} className="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer">
-                <input type="checkbox" checked={!!procedimientosSeleccionados.find(p => p.id === proc.id)} onChange={() => toggleProcedimientoPrincipal(proc)} className="w-5 h-5 accent-primary" />
-                <span className="flex-1 font-medium">{proc.nombre}</span>
-                <span className="text-muted font-bold">${parseFloat(proc.precio_base).toFixed(2)}</span>
-              </label>
-            ))}
-          </div>
-          
-          {procedimientosSeleccionados.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <h3 className="font-bold text-dark mb-3">Programa y agenda los procedimientos:</h3>
-              <p className="text-xs text-muted mb-3 italic">Si ingresas fecha y hora, se creará una Cita automáticamente en la agenda al guardar.</p>
-              {procedimientosSeleccionados.map(p => (
-                <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
-                  <span className="font-bold text-dark flex-1">{p.nombre}</span>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted font-bold">Fecha:</label>
-                      <input 
-                        type="date" 
-                        value={p.fecha_procedimiento || ''} 
-                        onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, fecha_procedimiento: e.target.value} : proc))} 
-                        className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary" 
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-muted font-bold">Hora:</label>
-                      <input 
-                        type="time" 
-                        value={p.hora_procedimiento || ''} 
-                        onChange={e => setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? {...proc, hora_procedimiento: e.target.value} : proc))} 
-                        className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark outline-none focus:border-primary" 
-                      />
-                    </div>
-                  </div>
-                  <span className="font-black text-primary md:w-20 md:text-right">${parseFloat(p.precio_base).toFixed(2)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-lg font-black text-primary mt-4 pt-3 border-t">
-                <span>Costo Total de Procedimientos:</span><span>${totalProcedimientos.toFixed(2)}</span>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="p-6 bg-surface border border-gray-200 rounded-2xl">
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">Sistema de Pagos y Abonos</h2>
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 w-full">
-              <label className="block text-sm font-medium text-muted mb-1 ml-2">Monto del Abono</label>
-              <input type="number" inputMode="decimal" value={montoAbono} onChange={e => setMontoAbono(e.target.value)} placeholder="$ 0.00" className="w-full p-3.5 bg-white border border-gray-200 rounded-full font-bold text-lg text-dark" />
-            </div>
-            <div className="flex-1 w-full">
-              <label className="block text-sm font-medium text-muted mb-1 ml-2">Aplicar abono a:</label>
-              <select value={destinoAbono} onChange={e => setDestinoAbono(e.target.value)} className="w-full p-3.5 bg-white border border-gray-200 rounded-full font-bold text-dark focus:outline-none focus:border-primary">
-                <option value="total">Abono al Saldo Total</option>
-                {procedimientosSeleccionados.map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <button onClick={agregarAbono} className="bg-dark hover:bg-black text-white px-6 py-3.5 rounded-full font-bold shadow-sm w-full sm:w-auto shrink-0 transition-transform hover:scale-105">
-              Agregar Abono
-            </button>
-          </div>
-
-          {pagosAgregados.length > 0 && (
-            <div className="mt-4 grid gap-2">
-              {pagosAgregados.map(pago => (
-                <div key={pago.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-sm">
-                  <div>
-                    <span className="font-bold text-dark">${pago.monto.toFixed(2)}</span>
-                    <span className="text-muted ml-2">→ {pago.destinoNombre}</span>
-                  </div>
-                  <button onClick={() => setPagosAgregados(pagosAgregados.filter(p => p.id !== pago.id))} className="text-danger hover:bg-danger/10 p-1.5 rounded-lg transition-colors"><Trash2 size={16}/></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-6 flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <span className="text-base font-bold text-muted">Abonado: <span className="text-green-600">${totalAbonado.toFixed(2)}</span></span>
-            <span className="text-2xl font-black text-danger mt-2 sm:mt-0">Saldo Restante: ${totalAPagar > 0 ? totalAPagar.toFixed(2) : '0.00'}</span>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-5 bg-[#E8F8F5] border border-[#A2D9CE] rounded-2xl flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-[#117A65] mb-2 flex items-center gap-2"><MessageCircle size={20} /> Recordatorio WhatsApp</h3>
-              <p className="text-sm text-[#148F77] mb-3 italic">"Para confirmar su cita del día: {fecha || '[Sin fecha]'} a las {hora || '[Sin hora]'}..."</p>
-            </div>
-            <button className="bg-[#25D366] hover:bg-[#128C7E] text-white px-4 py-2.5 rounded-full flex items-center justify-center gap-2 text-sm font-bold shadow-sm transition-colors mt-2"><MessageCircle size={18} /> Enviar Confirmación WA</button>
-          </div>
-          <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl flex flex-col justify-center items-center text-center">
-            <h3 className="font-bold text-blue-800 mb-2">Enviar Presupuesto PDF</h3>
-            <button onClick={generarPresupuestoPDF} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-full flex items-center gap-2 text-sm font-bold shadow-sm w-full justify-center"><FileDown size={18} /> Generar PDF con desglose y abonos</button>
-          </div>
-        </section>
-
-        <section>
           <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
-            Tratamientos Realizados
+            Tratamientos Realizados en Clínica
             <button onClick={() => setModalTratamiento(true)} className="bg-primary/10 text-primary hover:bg-primary hover:text-white px-3 py-1.5 rounded-full text-sm font-bold transition-colors flex items-center gap-1"><Plus size={16}/> Agregar</button>
           </h2>
           <div className="flex flex-wrap gap-2">
-            {tratamientosGuardados.length === 0 && <span className="text-sm text-muted">Sin tratamientos guardados en esta sesión.</span>}
+            {tratamientosGuardados.length === 0 && <span className="text-sm text-muted">Sin tratamientos guardados en este expediente.</span>}
             {tratamientosGuardados.map((trat, i) => (
               <div key={i} className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-full flex flex-col shadow-sm"><span>{trat.fecha} {trat.hora}</span><span className="opacity-90">{trat.procedimientos.length} proc. / {trat.dientes.length} dientes</span></div>
             ))}
           </div>
         </section>
 
-      {/* AQUI CERRAMOS LA CAJA BLANCA PRINCIPAL */}
+      {/* AQUI CERRAMOS LA CAJA BLANCA PRINCIPAL PARA DEJAR LIBRE AL ODONTOGRAMA */}
       </div>
 
       {/* ================= SECCIÓN ODONTOGRAMA (PROPORCIONES PERFECTAS, TAMAÑO MÁXIMO Y COLOR RESUELTO) ================= */}
@@ -508,7 +320,7 @@ export default function Pacientes() {
                   {/* Número absoluto arriba: Flota para no romper el ancho ni amontonarse */}
                   <span className="absolute bottom-full mb-1 sm:mb-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
 
-                  <div className="w-full relative flex justify-center h-20 sm:h-28 md:h-36 lg:h-48">
+                  <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
                     {fillColor !== 'transparent' && (
                       <div
                         className="absolute inset-0 z-0 transition-colors"
@@ -543,11 +355,14 @@ export default function Pacientes() {
               const condicion = historialOdontograma[diente];
               const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
               const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+              
+              // Separación quirúrgica solo para los dientes estrechos del centro abajo
+              const isMiddleBottom = [43, 42, 41, 31, 32, 33].includes(diente);
 
               return (
-                <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="relative flex flex-col items-center justify-start shrink min-w-0 group outline-none p-0 bg-transparent border-none">
+                <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className={`relative flex flex-col items-center justify-start shrink min-w-0 group outline-none p-0 bg-transparent border-none ${isMiddleBottom ? 'px-[2px] sm:px-1' : ''}`}>
                   
-                  <div className="w-full relative flex justify-center h-20 sm:h-28 md:h-36 lg:h-48">
+                  <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
                     {fillColor !== 'transparent' && (
                       <div
                         className="absolute inset-0 z-0 transition-colors"
@@ -618,9 +433,13 @@ export default function Pacientes() {
           </label>
           {imagenes.length > 0 && (
             <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-              {imagenes.map((img, i) => (
-                <img key={i} src={`https://dentalix.lat/${img.ruta_imagen}`} alt="Archivo Clínico" onClick={() => setImagenEnGrande(`https://dentalix.lat/${img.ruta_imagen}`)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 hover:border-primary shadow-sm" />
-              ))}
+              {imagenes.map((img, i) => {
+                // Validación para renderizar rutas locales vs del servidor
+                const imageSrc = img.es_local ? img.ruta_imagen : `https://dentalix.lat/${img.ruta_imagen}`;
+                return (
+                  <img key={i} src={imageSrc} alt="Archivo Clínico" onClick={() => setImagenEnGrande(imageSrc)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 hover:border-primary shadow-sm shrink-0" />
+                );
+              })}
             </div>
           )}
         </section>
@@ -643,7 +462,7 @@ export default function Pacientes() {
 
       </div>
 
-      <button onClick={guardarCitaYRegresar} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-[1.01]">
+      <button onClick={guardarExpedienteYRegresar} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-[1.01]">
         <Check size={24} /> Guardar Expediente de Paciente
       </button>
 
