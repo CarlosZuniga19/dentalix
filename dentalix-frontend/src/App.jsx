@@ -59,13 +59,22 @@ function RouteChangeListener({ setBackAction }) {
 }
 
 function Layout({ children, nombreClinica, backAction }) {
-  const esOscuro = document.documentElement.classList.contains('dark') || localStorage.getItem('dentalix_dark') === 'true';
+  // Observador en tiempo real para que los componentes cambien cuando el sistema cambia de tema
+  const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setEsOscuro(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
-      {/* CABECERA MÓVIL (Solo Logo Clickeable, sin hamburguesa) */}
-      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-background border-b border-gray-200 flex items-center justify-center z-40">
+      {/* CABECERA MÓVIL (Fijada explícitamente en blanco para día y fondo oscuro para noche, bloqueando el gris de iOS) */}
+      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-white dark:bg-background border-b border-gray-200 dark:border-gray-800 flex items-center justify-center z-40 transition-colors">
         <Link to="/" className="text-primary font-bold text-xl hover:opacity-80 transition-opacity">
           {nombreClinica}
         </Link>
@@ -97,7 +106,7 @@ function Layout({ children, nombreClinica, backAction }) {
       {backAction && (
         <button 
           onClick={backAction}
-          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-14 h-14 bg-dark text-white rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.2)] flex items-center justify-center z-40 hover:scale-105 active:scale-95 transition-all"
+          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-14 h-14 bg-dark text-white rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.2)] flex items-center justify-center z-[60] hover:scale-105 active:scale-95 transition-all"
           title="Volver sin guardar"
         >
           <ArrowLeft size={28} />
@@ -109,8 +118,8 @@ function Layout({ children, nombreClinica, backAction }) {
         <nav 
           className={
             esOscuro
-              ? "bg-background border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
-              : "bg-background/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
+              ? "bg-background border border-gray-200 dark:border-gray-800 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full transition-colors"
+              : "bg-white/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full transition-colors"
           }
           style={{ scrollbarWidth: 'none' }}
         >
@@ -167,6 +176,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    // BLOQUEO DE ZOOM EN MÓVILES
     let viewport = document.querySelector('meta[name="viewport"]');
     if (!viewport) {
       viewport = document.createElement('meta');
@@ -175,8 +185,33 @@ export default function App() {
     }
     viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
 
+    // --- DETECCIÓN AUTOMÁTICA DEL MODO OSCURO DEL SISTEMA (iOS/Android/Mac) ---
+    const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const aplicarTema = () => {
+      const userPref = localStorage.getItem('dentalix_dark');
+      // Si el usuario guardó "true", o si no ha tocado el ajuste pero su celular está en modo oscuro
+      if (userPref === 'true' || (userPref === null && systemDarkQuery.matches)) {
+        document.documentElement.classList.add('dark');
+        document.documentElement.style.colorScheme = 'dark'; // Esto bloquea los grises invasivos de iOS
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.style.colorScheme = 'light';
+      }
+    };
+
+    aplicarTema(); // Correr la primera vez que abre la app
+
+    // Si el usuario baja el centro de control de su iPhone y cambia a modo nocturno en vivo:
+    const listenerModoOscuro = () => {
+      if (localStorage.getItem('dentalix_dark') === null) {
+        aplicarTema();
+      }
+    };
+    systemDarkQuery.addEventListener('change', listenerModoOscuro);
+    // -------------------------------------------------------------------------
+
     if (localStorage.getItem('dentalix_auth') === 'true') setIsAuthenticated(true);
-    if (localStorage.getItem('dentalix_dark') === 'true') document.documentElement.classList.add('dark');
 
     const colorCache = localStorage.getItem('dentalix_color_primario');
     const nombreCache = localStorage.getItem('dentalix_nombre_app');
@@ -202,6 +237,8 @@ export default function App() {
         }
       })
       .catch(err => console.error("Error al cargar ajustes globales:", err));
+
+    return () => systemDarkQuery.removeEventListener('change', listenerModoOscuro);
   }, []);
 
   const handleLogin = (usuarioId) => {
