@@ -45,6 +45,9 @@ window.fetch = async function (...args) {
 
 
 function Layout({ children, nombreClinica }) {
+  // CORRECCIÓN QUIRÚRGICA: Detectar el modo activo de forma nativa para evitar fallos de Tailwind
+  const esOscuro = document.documentElement.classList.contains('dark') || localStorage.getItem('dentalix_dark') === 'true';
+
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300">
       
@@ -79,7 +82,11 @@ function Layout({ children, nombreClinica }) {
       {/* BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
       <div className="md:hidden fixed bottom-6 left-0 w-full px-4 z-50 flex justify-center pointer-events-none">
         <nav 
-          className="bg-background/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
+          className={
+            esOscuro
+              ? "bg-background border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
+              : "bg-background/95 backdrop-blur-md border border-gray-200 rounded-full flex overflow-x-auto shadow-[0_8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-w-full"
+          }
           style={{ scrollbarWidth: 'none' }}
         >
           <div className="flex min-w-max px-2 py-1">
@@ -177,7 +184,6 @@ export default function App() {
 
   const handleLogin = (usuarioId) => {
     localStorage.setItem('dentalix_auth', 'true');
-    // Guardamos el ID del usuario. Si no se pasa, usamos 1 como seguridad para que no colapse el sistema
     localStorage.setItem('dentalix_usuario_id', usuarioId || '1');
     setIsAuthenticated(true);
   };
