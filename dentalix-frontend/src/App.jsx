@@ -12,7 +12,7 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
 // =========================================================================
-// INTERCEPTOR GLOBAL MULTIUSUARIO
+// INTERCEPTOR GLOBAL MULTIUSUARIO 
 // Agrega el usuario_id automáticamente a todas las llamadas hacia api.php
 // =========================================================================
 const originalFetch = window.fetch;
