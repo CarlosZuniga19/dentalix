@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAppContext } from './App';
 
 // --- ARREGLOS DE DATOS CLÍNICOS EXACTOS ---
 const ANAMNESIS_ITEMS = [
@@ -35,6 +36,7 @@ export default function Pacientes() {
   const [vista, setVista] = useState(mostrarEstadoCita ? 'nuevo' : 'lista');
   const [catalogoProcedimientos, setCatalogoProcedimientos] = useState([]);
   const API_URL = 'https://dentalix.lat/api.php';
+  const { setBackAction } = useAppContext();
 
   const [listaPacientes, setListaPacientes] = useState([]);
   const [busquedaP, setBusquedaP] = useState('');
@@ -58,6 +60,16 @@ export default function Pacientes() {
   const [anamnesis, setAnamnesis] = useState(
     ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {})
   );
+
+  // CONTROL DEL BOTÓN ATRÁS GLOBAL
+  useEffect(() => {
+    if (vista !== 'lista') {
+      setBackAction(() => () => setVista('lista'));
+    } else {
+      setBackAction(null);
+    }
+    return () => setBackAction(null);
+  }, [vista, setBackAction]);
 
   // ================= CARGA PRINCIPAL DE DATOS =================
   useEffect(() => {
@@ -373,7 +385,7 @@ export default function Pacientes() {
       {/* AQUI CERRAMOS LA CAJA BLANCA PRINCIPAL PARA DEJAR LIBRE AL ODONTOGRAMA */}
       </div>
 
-      {/* ================= SECCIÓN ODONTOGRAMA (PROPORCIONES PERFECTAS, TAMAÑO MÁXIMO Y COLOR RESUELTO) ================= */}
+      {/* ================= SECCIÓN ODONTOGRAMA ================= */}
       <section className="w-full py-6">
         <div className="px-2 sm:px-8 mb-8">
           <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Plus, X, Check, FileDown, MessageCircle, Search } from 'lucide-react';
+import { Plus, X, Check, FileDown, MessageCircle, Search, Bell } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAppContext } from './App';
 
-const ANAMNESIS_ITEMS = [ "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le han practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas" ];
+const ANAMNESIS_ITEMS = [ "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas" ];
 const DIENTES_ADULTOS = [ 18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28, 48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38 ];
+const CONDICIONES_DENTALES = []; // Arreglo vacío necesario para evitar que el bloque del odontograma crashee
 
 export default function Citas() {
   const [vista, setVista] = useState('lista'); 
@@ -18,6 +20,7 @@ export default function Citas() {
   const navigate = useNavigate();
 
   const API_URL = 'https://dentalix.lat/api.php';
+  const { setBackAction } = useAppContext();
 
   const [idCitaEditando, setIdCitaEditando] = useState(null);
   const [fecha, setFecha] = useState('');
@@ -29,10 +32,25 @@ export default function Citas() {
   const [abono, setAbono] = useState('');
   const [anamnesis, setAnamnesis] = useState(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
 
-  // NUEVO: Control para el popup de procedimientos
+  // ================= ESTADOS DEL NUEVO POPUP DE PROCEDIMIENTOS =================
   const [modalProcedimientos, setModalProcedimientos] = useState(false);
+  const [procTemp, setProcTemp] = useState(null);
+  const [dienteSeleccionado, setDienteSeleccionado] = useState(null);
 
-  // Función para recargar la lista de citas por debajo del agua
+  // Variables interceptadas para alimentar el bloque exacto del odontograma sin que explote
+  const historialOdontograma = (dienteSeleccionado && procTemp) ? {
+    [dienteSeleccionado]: { nombre: procTemp.nombre, color: procTemp.color_hex || '#8B5CF6' }
+  } : {};
+
+  const setDienteActivoHistorial = (diente) => {
+    // Si toca el mismo diente, lo deselecciona, si no, lo marca
+    setDienteSeleccionado(prev => prev === diente ? null : diente);
+  };
+
+  const dienteActivoHistorial = null; // Fuerza a que el sub-modal interno del odontograma nunca se abra aquí
+  const aplicarCondicionDental = () => {}; 
+  // ============================================================================
+
   const recargarCitas = () => {
     fetch(`${API_URL}?accion=citas_lista`)
       .then(res => res.json())
@@ -51,7 +69,25 @@ export default function Citas() {
       });
   };
 
-  // ================= 1. CARGA INICIAL =================
+  // CONTROL DEL BOTÓN ATRÁS GLOBAL
+  useEffect(() => {
+    if (vista !== 'lista') {
+      setBackAction(() => () => {
+        setPacienteSeleccionado(null);
+        setIdCitaEditando(null);
+        setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
+        setFecha(''); setHora(''); setEstadoCita(['programado']);
+        setProcedimientosSeleccionados([]); setAbono('');
+        setBusquedaPaciente('');
+        navigate('/citas', { replace: true, state: {} });
+        setVista('lista');
+      });
+    } else {
+      setBackAction(null);
+    }
+    return () => setBackAction(null);
+  }, [vista, navigate, setBackAction]);
+
   useEffect(() => {
     recargarCitas();
     fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setPacientesExistentes(data || []));
@@ -104,7 +140,6 @@ export default function Citas() {
     setBusquedaPaciente('');
   };
 
-  // ================= 2. EXTRACCIÓN Y AGRUPACIÓN AL EDITAR =================
   const abrirEdicionCita = (c) => {
     resetFormulario();
     setIdCitaEditando(c.id_cita);
@@ -112,7 +147,6 @@ export default function Citas() {
     setHora(c.hora);
     setEstadoCita(c.estado ? c.estado.split(',') : ['programado']);
     
-    // Asignar el abono si ya existía en la base de datos
     if (c.abono !== null && c.abono !== undefined) {
       setAbono(c.abono);
     }
@@ -130,12 +164,13 @@ export default function Citas() {
       .then(res => res.json())
       .then(data => {
         const procsDeEstaCita = (data || []).filter(p => p.fecha_procedimiento === c.fecha);
+        
         const procsAgrupados = procsDeEstaCita.reduce((acc, proc) => {
-          const existente = acc.find(p => p.id === proc.id);
+          const existente = acc.find(p => p.id === proc.id && p.diente === proc.diente);
           if (existente) {
             existente.cantidad += 1;
           } else {
-            acc.push({ ...proc, cantidad: 1 });
+            acc.push({ ...proc, cantidad: 1, diente: proc.diente || null });
           }
           return acc;
         }, []);
@@ -160,14 +195,14 @@ export default function Citas() {
           id: p.id,
           precio_base: p.precio_base,
           fecha_procedimiento: fecha,
-          hora_procedimiento: hora 
+          hora_procedimiento: hora,
+          diente: p.diente || null 
         });
       }
     });
 
     const payload = {
       paciente: datosPaciente,
-      // Se inyecta abono, total y restante para el backend
       cita: { 
         id: idCitaEditando, 
         fecha, 
@@ -191,12 +226,11 @@ export default function Citas() {
         alert("Cita y procedimientos guardados exitosamente.");
         resetFormulario();
         recargarCitas(); 
-        setVista('lista'); // <-- Retorno automático a la lista de citas
+        setVista('lista'); 
       } else { alert("Error: " + data.error); }
     });
   };
 
-  // ================= 3. GENERADOR DE PDF =================
   const generarPresupuestoPDF = () => {
     const doc = new jsPDF();
     const primaryColor = [139, 92, 246]; 
@@ -225,7 +259,7 @@ export default function Citas() {
 
     const tableData = procedimientosSeleccionados.map((p, idx) => [
       (idx + 1).toString().padStart(2, '0'),
-      p.nombre,
+      p.diente ? `${p.nombre} (Diente: ${p.diente})` : p.nombre,
       p.cantidad.toString(),
       `$${parseFloat(p.precio_base).toFixed(2)}`,
       `$${(parseFloat(p.precio_base) * (p.cantidad || 1)).toFixed(2)}`
@@ -233,14 +267,37 @@ export default function Citas() {
 
     autoTable(doc, {
       startY: 75,
-      head: [['No.', 'Descripción del Servicio', 'Cant.', 'Costo Unit.', 'Total']],
+      head: [['No.', 'Descripción del Servicio / Padecimiento', 'Cant.', 'Costo Unit.', 'Total']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: primaryColor, textColor: 255 },
       styles: { fontSize: 9 }
     });
 
-    const finalY = doc.lastAutoTable.finalY + 15;
+    let yDientes = doc.lastAutoTable.finalY + 15;
+
+    doc.setFontSize(11);
+    doc.setTextColor(...primaryColor);
+    doc.setFont("helvetica", "bold");
+    doc.text("MAPEO DENTAL (ODONTOGRAMA)", 14, yDientes);
+    
+    doc.setTextColor(0,0,0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    yDientes += 7;
+    
+    const procsConDiente = procedimientosSeleccionados.filter(p => p.diente);
+    if(procsConDiente.length > 0) {
+        procsConDiente.forEach(p => {
+            doc.text(`• Diente ${p.diente}: ${p.nombre}`, 14, yDientes);
+            yDientes += 5;
+        });
+    } else {
+        doc.text("Ningún diente específico asignado en esta cotización.", 14, yDientes);
+        yDientes += 5;
+    }
+
+    const finalY = yDientes + 10;
     
     doc.setFillColor(245, 245, 245); 
     doc.rect(120, finalY - 5, 75, 25, 'F');
@@ -267,7 +324,22 @@ export default function Citas() {
     doc.save(`Presupuesto_${datosPaciente.nombre || 'Paciente'}.pdf`);
   };
 
-  // ================= VISTAS =================
+  const abrirModalProcedimientos = () => {
+    setProcTemp(null);
+    setDienteSeleccionado(null);
+    setModalProcedimientos(true);
+  };
+
+  const agregarFila = () => {
+    if(!procTemp) {
+      alert("Debes seleccionar un procedimiento de la lista.");
+      return;
+    }
+    const nuevoProc = { ...procTemp, cantidad: 1, diente: dienteSeleccionado };
+    setProcedimientosSeleccionados([...procedimientosSeleccionados, nuevoProc]);
+    setModalProcedimientos(false);
+  };
+
   if (vista === 'lista') {
     return (
       <div className="max-w-4xl mx-auto pb-6">
@@ -381,16 +453,23 @@ export default function Citas() {
               Procedimientos Programados
               {procedimientosSeleccionados.length > 0 && <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-black">{procedimientosSeleccionados.length}</span>}
             </h2>
-            <button type="button" onClick={() => setModalProcedimientos(true)} className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
+            <button type="button" onClick={abrirModalProcedimientos} className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
               <Plus size={16} /> Agregar Procedimiento
             </button>
           </div>
 
           {procedimientosSeleccionados.length > 0 ? (
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-              {procedimientosSeleccionados.map(p => (
-                <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
-                  <span className="font-bold text-dark flex-1">{p.nombre}</span>
+              {procedimientosSeleccionados.map((p, idx) => (
+                <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
+                  <div className="font-bold text-dark flex-1 flex items-center gap-2">
+                    {p.nombre}
+                    {p.diente && (
+                      <span className="bg-orange-50 border border-orange-200 text-orange-600 text-xs font-black px-2.5 py-0.5 rounded-full">
+                        Diente: {p.diente}
+                      </span>
+                    )}
+                  </div>
                   
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-muted">Cantidad:</label>
@@ -398,7 +477,7 @@ export default function Citas() {
                       value={p.cantidad || 1} 
                       onChange={(e) => {
                         const nuevaCant = parseInt(e.target.value);
-                        setProcedimientosSeleccionados(procedimientosSeleccionados.map(proc => proc.id === p.id ? { ...proc, cantidad: nuevaCant } : proc));
+                        setProcedimientosSeleccionados(procedimientosSeleccionados.map((proc, i) => i === idx ? { ...proc, cantidad: nuevaCant } : proc));
                       }} 
                       className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark focus:border-primary outline-none"
                     >
@@ -441,14 +520,14 @@ export default function Citas() {
 
         {/* --- PAGOS CON BOTÓN DE APLICAR ABONO --- */}
         <section className="p-5 bg-surface border border-gray-200 rounded-2xl">
-          <label className="block text-sm font-medium text-muted mb-1">Monto a Cobrar / Abonar en Caja</label>
-          <div className="flex gap-2 mb-2">
-            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="flex-1 p-3 bg-white border border-gray-200 rounded-full font-bold text-dark outline-none focus:border-primary" />
-            <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="bg-dark hover:bg-black text-white px-5 py-3 rounded-full font-bold text-sm shadow-sm flex items-center gap-2 shrink-0 transition-colors">
+          <label className="block text-sm font-medium text-muted mb-2">Monto a Cobrar / Abonar en Caja</label>
+          <div className="flex flex-col sm:flex-row gap-3 mb-3">
+            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full sm:flex-1 p-3 bg-white border border-gray-200 rounded-full font-bold text-dark outline-none focus:border-primary shadow-sm" />
+            <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="w-full sm:w-auto bg-dark hover:bg-black text-white px-6 py-3 rounded-full font-bold text-sm shadow-sm flex items-center justify-center gap-2 shrink-0 transition-colors">
               <Check size={16} /> Aplicar
             </button>
           </div>
-          <div className="mt-4 flex flex-col sm:flex-row sm:justify-between text-sm bg-white p-4 rounded-xl border gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-between text-sm bg-white p-4 rounded-xl border gap-2 shadow-sm">
             <span className="font-bold text-muted">Total procedimientos: <span className="text-dark">${totalProcedimientos.toFixed(2)}</span></span>
             <span className="font-black text-danger">Por cobrar: ${totalAPagar > 0 ? totalAPagar.toFixed(2) : '0.00'}</span>
           </div>
@@ -459,32 +538,179 @@ export default function Citas() {
         <Check size={24} /> {idCitaEditando ? "Actualizar Cita y Paciente" : "Guardar Registro y Cita"}
       </button>
 
-      {/* POPUP DE PROCEDIMIENTOS */}
+      {/* ========================================================================= */}
+      {/* POPUP DE PROCEDIMIENTO INDIVIDUAL + ODONTOGRAMA (Z-INDEX 60 PARA MÓVIL)    */}
+      {/* ========================================================================= */}
       {modalProcedimientos && (
-        <div className="fixed inset-0 bg-dark/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-black text-lg text-dark">Catálogo Clínico</h3>
+        <div className="fixed inset-0 bg-dark/60 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-5xl shadow-2xl flex flex-col mt-auto mb-auto max-h-[90vh]">
+            
+            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <h3 className="font-black text-xl text-dark">Agregar Procedimiento</h3>
               <button onClick={() => setModalProcedimientos(false)} className="p-2 hover:bg-surface rounded-full text-muted hover:text-danger transition-colors"><X size={20}/></button>
             </div>
-            <div className="overflow-y-auto flex-1 grid gap-2 pr-2">
-              {catalogoProcedimientos.map(proc => (
-                <label key={proc.id} className="flex items-center gap-3 p-3 bg-surface hover:bg-white rounded-xl border border-gray-100 cursor-pointer transition-colors shadow-sm">
-                  <input type="checkbox" checked={!!procedimientosSeleccionados.find(p => p.id === proc.id)} onChange={() => {
-                    if (procedimientosSeleccionados.find(p => p.id === proc.id)) {
-                      setProcedimientosSeleccionados(procedimientosSeleccionados.filter(p => p.id !== proc.id));
-                    } else { 
-                      setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, cantidad: 1 }]); 
-                    }
-                  }} className="w-5 h-5 accent-primary shrink-0" />
-                  <span className="flex-1 text-sm font-bold text-dark">{proc.nombre}</span>
-                  <span className="text-primary font-black text-sm">${parseFloat(proc.precio_base).toFixed(2)}</span>
-                </label>
-              ))}
+
+            <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-12">
+              
+              <div>
+                <label className="block text-sm font-bold text-primary uppercase mb-2">1. Selecciona un procedimiento</label>
+                <select
+                  value={procTemp ? procTemp.id : ''}
+                  onChange={(e) => {
+                    const seleccionado = catalogoProcedimientos.find(p => p.id == e.target.value);
+                    setProcTemp(seleccionado);
+                  }}
+                  className="w-full p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary"
+                >
+                  <option value="" disabled>-- Elige un procedimiento --</option>
+                  {catalogoProcedimientos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre} - ${parseFloat(p.precio_base).toFixed(2)}</option>
+                  ))}
+                </select>
+              </div>
+
+              {procTemp && (
+                <div className="border-t pt-4">
+                  {/* === BLOQUE EXACTO DEL ODONTOGRAMA === */}
+                  <section className="w-full py-6">
+                    <div className="px-2 sm:px-8 mb-8">
+                      <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
+                      <p className="text-xs text-muted">Toca un diente para asignarle un padecimiento.</p>
+                    </div>
+
+                    {/* Contenedor Flex: Proporción anatómica natural, números desamontonados y dientes enormes */}
+                    <div className="w-full flex flex-col gap-12 sm:gap-20 items-center overflow-x-hidden px-2">
+
+                      {/* FILA SUPERIOR (Maxilar) - Alineación inferior (items-end) proporcional */}
+                      <div className="flex justify-between items-end w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pt-6">
+                        {DIENTES_ADULTOS.slice(0, 16).map(diente => {
+                          const condicion = historialOdontograma[diente];
+                          const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+                          const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+
+                          return (
+                            <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="relative flex flex-col items-center justify-end shrink min-w-0 group outline-none p-0 bg-transparent border-none">
+                              
+                              {/* Número absoluto arriba: Flota para no romper el ancho ni amontonarse */}
+                              <span className="absolute bottom-full mb-1 sm:mb-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
+
+                              <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+                                {fillColor !== 'transparent' && (
+                                  <div
+                                    className="absolute inset-0 z-0 transition-colors"
+                                    style={{
+                                      backgroundColor: fillColor,
+                                      WebkitMaskImage: `url("/odontograma/${diente}.svg")`,
+                                      WebkitMaskSize: 'contain',
+                                      WebkitMaskRepeat: 'no-repeat',
+                                      WebkitMaskPosition: 'bottom center',
+                                      maskImage: `url("/odontograma/${diente}.svg")`,
+                                      maskSize: 'contain',
+                                      maskRepeat: 'no-repeat',
+                                      maskPosition: 'bottom center'
+                                    }}
+                                  />
+                                )}
+                                <img
+                                  src={`/odontograma/${diente}.svg`}
+                                  alt={`Diente ${diente}`}
+                                  className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110"
+                                  style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
+                                />
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* FILA INFERIOR (Mandíbula) - Alineación superior (items-start) proporcional */}
+                      <div className="flex justify-between items-start w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pb-6">
+                        {DIENTES_ADULTOS.slice(16, 32).map(diente => {
+                          const condicion = historialOdontograma[diente];
+                          const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+                          const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+                          
+                          // Separación quirúrgica solo para los dientes estrechos del centro abajo
+                          const isMiddleBottom = [43, 42, 41, 31, 32, 33].includes(diente);
+
+                          return (
+                            <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className={`relative flex flex-col items-center justify-start shrink min-w-0 group outline-none p-0 bg-transparent border-none ${isMiddleBottom ? 'px-[2px] sm:px-1' : ''}`}>
+                              
+                              <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+                                {fillColor !== 'transparent' && (
+                                  <div
+                                    className="absolute inset-0 z-0 transition-colors"
+                                    style={{
+                                      backgroundColor: fillColor,
+                                      WebkitMaskImage: `url("/odontograma/${diente}.svg")`,
+                                      WebkitMaskSize: 'contain',
+                                      WebkitMaskRepeat: 'no-repeat',
+                                      WebkitMaskPosition: 'top center',
+                                      maskImage: `url("/odontograma/${diente}.svg")`,
+                                      maskSize: 'contain',
+                                      maskRepeat: 'no-repeat',
+                                      maskPosition: 'top center'
+                                    }}
+                                  />
+                                )}
+                                <img
+                                  src={`/odontograma/${diente}.svg`}
+                                  alt={`Diente ${diente}`}
+                                  className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110"
+                                  style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
+                                />
+                              </div>
+
+                              {/* Número absoluto abajo: Flota para no romper el ancho ni amontonarse */}
+                              <span className="absolute top-full mt-1 sm:mt-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
+                            
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                    </div>
+
+                    {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
+                    {dienteActivoHistorial && (
+                      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+                          <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
+                            <span className="font-black text-lg text-dark">Diente {dienteActivoHistorial}</span>
+                            <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20} className="text-danger"/></button>
+                          </div>
+                          <div className="p-2 overflow-y-auto flex-1">
+                            {CONDICIONES_DENTALES.map((cond, i) => (
+                              <button 
+                                key={i} 
+                                onClick={() => aplicarCondicionDental(cond)} 
+                                className="w-full flex items-center gap-3 p-3 hover:bg-surface rounded-xl text-left text-sm font-medium transition-colors"
+                              >
+                                <div className="w-5 h-5 rounded-full border-2 shadow-sm shrink-0" style={{ backgroundColor: cond.color, borderColor: cond.borde || cond.color }}></div>
+                                <span className="text-dark">{cond.nombre}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                  {/* === FIN DEL BLOQUE EXACTO === */}
+                </div>
+              )}
+
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
-              <button onClick={() => setModalProcedimientos(false)} className="bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-full shadow-sm transition-transform hover:scale-105">Listo</button>
+
+            <div className="pt-3 border-t flex justify-end shrink-0">
+              <button 
+                type="button" 
+                onClick={agregarFila} 
+                className="bg-primary hover:bg-primary-hover text-white font-black py-3 px-10 rounded-full shadow-md transition-transform"
+              >
+                Agregar a la Cita
+              </button>
             </div>
+
           </div>
         </div>
       )}

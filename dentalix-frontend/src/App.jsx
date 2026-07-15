@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Link } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings } from 'lucide-react';
+import { useState, useEffect, createContext, useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -12,7 +12,13 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
 // =========================================================================
-// INTERCEPTOR GLOBAL MULTIUSUARIO 
+// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"
+// =========================================================================
+export const AppContext = createContext();
+export const useAppContext = () => useContext(AppContext);
+
+// =========================================================================
+// INTERCEPTOR GLOBAL MULTIUSUARIO
 // Agrega el usuario_id automáticamente a todas las llamadas hacia api.php
 // =========================================================================
 const originalFetch = window.fetch;
@@ -43,13 +49,20 @@ window.fetch = async function (...args) {
 };
 // =========================================================================
 
+// Helper para esconder el botón Atrás automáticamente si el usuario cambia de menú
+function RouteChangeListener({ setBackAction }) {
+  const location = useLocation();
+  useEffect(() => {
+    setBackAction(null);
+  }, [location.pathname, setBackAction]);
+  return null;
+}
 
-function Layout({ children, nombreClinica }) {
-  // CORRECCIÓN QUIRÚRGICA: Detectar el modo activo de forma nativa para evitar fallos de Tailwind
+function Layout({ children, nombreClinica, backAction }) {
   const esOscuro = document.documentElement.classList.contains('dark') || localStorage.getItem('dentalix_dark') === 'true';
 
   return (
-    <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
       {/* CABECERA MÓVIL (Solo Logo Clickeable, sin hamburguesa) */}
       <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-background border-b border-gray-200 flex items-center justify-center z-40">
@@ -64,7 +77,6 @@ function Layout({ children, nombreClinica }) {
           {nombreClinica}
         </Link>
         
-        {/* REORDENADO: "Hoy" es el primero y es la ruta raíz */}
         <NavItem to="/" icon={<Bell />} label="Hoy" />
         <NavItem to="/calendario" icon={<Calendar />} label="Calendario" />
         <NavItem to="/agenda" icon={<Clock />} label="Agenda" />
@@ -79,6 +91,19 @@ function Layout({ children, nombreClinica }) {
         {children}
       </main>
 
+      {/* ========================================================= */}
+      {/* BOTÓN FLOTANTE GLOBAL "ATRÁS" (Se activa desde las vistas) */}
+      {/* ========================================================= */}
+      {backAction && (
+        <button 
+          onClick={backAction}
+          className="fixed bottom-24 right-4 md:bottom-8 md:right-8 w-14 h-14 bg-dark text-white rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.2)] flex items-center justify-center z-40 hover:scale-105 active:scale-95 transition-all"
+          title="Volver sin guardar"
+        >
+          <ArrowLeft size={28} />
+        </button>
+      )}
+
       {/* BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
       <div className="md:hidden fixed bottom-6 left-0 w-full px-4 z-50 flex justify-center pointer-events-none">
         <nav 
@@ -90,7 +115,6 @@ function Layout({ children, nombreClinica }) {
           style={{ scrollbarWidth: 'none' }}
         >
           <div className="flex min-w-max px-2 py-1">
-            {/* REORDENADO: "Hoy" es el primero y es la ruta raíz */}
             <MobileNavItem to="/" icon={<Bell size={22} />} label="Hoy" />
             <MobileNavItem to="/calendario" icon={<Calendar size={22} />} label="Calendario" />
             <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
@@ -105,7 +129,6 @@ function Layout({ children, nombreClinica }) {
   );
 }
 
-/* COMPONENTE PARA BOTONES DEL MENÚ ESCRITORIO */
 function NavItem({ to, icon, label }) {
   return (
     <NavLink to={to} className={({ isActive }) => `flex items-center p-3 mb-2 rounded-full transition-colors ${isActive ? 'bg-primary text-white shadow-sm' : 'text-muted hover:bg-surface hover:text-primary'}`}>
@@ -115,7 +138,6 @@ function NavItem({ to, icon, label }) {
   );
 }
 
-/* COMPONENTE PARA BOTONES DE LA BARRA INFERIOR MÓVIL */
 function MobileNavItem({ to, icon, label }) {
   return (
     <NavLink to={to} className={({ isActive }) => `flex flex-col items-center justify-center w-[72px] h-14 transition-colors shrink-0 ${isActive ? 'text-primary' : 'text-muted hover:text-primary'}`}>
@@ -128,6 +150,9 @@ function MobileNavItem({ to, icon, label }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [nombreClinica, setNombreClinica] = useState('Dentalix');
+  
+  // Estado que controla la acción del botón Atrás global
+  const [backAction, setBackAction] = useState(null);
 
   const oscurecerColor = (hex, factor = 0.15) => {
     hex = String(hex).replace(/[^0-9a-f]/gi, '');
@@ -142,7 +167,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // BLOQUEO DE ZOOM EN MÓVILES (Inyecta la etiqueta meta dinámicamente)
     let viewport = document.querySelector('meta[name="viewport"]');
     if (!viewport) {
       viewport = document.createElement('meta');
@@ -154,7 +178,6 @@ export default function App() {
     if (localStorage.getItem('dentalix_auth') === 'true') setIsAuthenticated(true);
     if (localStorage.getItem('dentalix_dark') === 'true') document.documentElement.classList.add('dark');
 
-    // Carga de color ULTRA-RÁPIDA desde Caché
     const colorCache = localStorage.getItem('dentalix_color_primario');
     const nombreCache = localStorage.getItem('dentalix_nombre_app');
     
@@ -164,7 +187,6 @@ export default function App() {
     }
     if (nombreCache) setNombreClinica(nombreCache);
 
-    // Carga silenciosa desde Base de Datos
     fetch('https://dentalix.lat/api.php?accion=ajustes')
       .then(res => res.json())
       .then(data => {
@@ -197,18 +219,21 @@ export default function App() {
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
   return (
-    <Router>
-      <Layout nombreClinica={nombreClinica}>
-        <Routes>
-          <Route path="/" element={<Recordatorios />} />
-          <Route path="/calendario" element={<Calendario />} />
-          <Route path="/agenda" element={<Agenda />} />
-          <Route path="/citas" element={<Citas />} />
-          <Route path="/pacientes" element={<Pacientes />} />
-          <Route path="/procedimientos" element={<Procedimientos />} />
-          <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <AppContext.Provider value={{ setBackAction }}>
+      <Router>
+        <RouteChangeListener setBackAction={setBackAction} />
+        <Layout nombreClinica={nombreClinica} backAction={backAction}>
+          <Routes>
+            <Route path="/" element={<Recordatorios />} />
+            <Route path="/calendario" element={<Calendario />} />
+            <Route path="/agenda" element={<Agenda />} />
+            <Route path="/citas" element={<Citas />} />
+            <Route path="/pacientes" element={<Pacientes />} />
+            <Route path="/procedimientos" element={<Procedimientos />} />
+            <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </AppContext.Provider>
   );
 }
