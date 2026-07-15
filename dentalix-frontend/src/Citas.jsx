@@ -29,6 +29,9 @@ export default function Citas() {
   const [abono, setAbono] = useState('');
   const [anamnesis, setAnamnesis] = useState(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
 
+  // NUEVO: Control para el popup de procedimientos
+  const [modalProcedimientos, setModalProcedimientos] = useState(false);
+
   // Función para recargar la lista de citas por debajo del agua
   const recargarCitas = () => {
     fetch(`${API_URL}?accion=citas_lista`)
@@ -54,15 +57,12 @@ export default function Citas() {
     fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setPacientesExistentes(data || []));
     fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
 
-    // LÓGICA DE NAVEGACIÓN Y LIMPIEZA DE ROUTER
     if (location.state?.citaIdParaEditar) {
-      // Se resolvió en un useEffect separado o aquí al inicio, pero requerimos que el fetch termine primero
       fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => {
         const citaEncontrada = data.find(c => Number(c.id_cita) === Number(location.state.citaIdParaEditar));
         if (citaEncontrada) {
           abrirEdicionCita(citaEncontrada);
         }
-        // Borramos el recuerdo para que el botón "Cancelar" sí funcione
         navigate(location.pathname, { replace: true, state: {} });
       });
     } else if (location.state?.pacientePreseleccionado) {
@@ -79,7 +79,6 @@ export default function Citas() {
         motivo: p.motivo || p.motivo_consulta || ''
       });
       setVista('nueva_cita');
-      // Borramos el recuerdo para que el botón "Cancelar" sí funcione
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [vista]);
@@ -105,13 +104,18 @@ export default function Citas() {
     setBusquedaPaciente('');
   };
 
-  // ================= 2. EXTRACCIÓN Y AGRUPACIÓN DE PROCEDIMIENTOS AL EDITAR =================
+  // ================= 2. EXTRACCIÓN Y AGRUPACIÓN AL EDITAR =================
   const abrirEdicionCita = (c) => {
     resetFormulario();
     setIdCitaEditando(c.id_cita);
     setFecha(c.fecha);
     setHora(c.hora);
     setEstadoCita(c.estado ? c.estado.split(',') : ['programado']);
+    
+    // Asignar el abono si ya existía en la base de datos
+    if (c.abono !== null && c.abono !== undefined) {
+      setAbono(c.abono);
+    }
     
     const objPaciente = {
       id: c.id_paciente, nombre: c.paciente, telefono: c.telefono || '',
@@ -126,8 +130,6 @@ export default function Citas() {
       .then(res => res.json())
       .then(data => {
         const procsDeEstaCita = (data || []).filter(p => p.fecha_procedimiento === c.fecha);
-        
-        // Magia: Agrupamos las filas idénticas de la DB en cantidades para la interfaz visual
         const procsAgrupados = procsDeEstaCita.reduce((acc, proc) => {
           const existente = acc.find(p => p.id === proc.id);
           if (existente) {
@@ -144,19 +146,19 @@ export default function Citas() {
     setVista('nueva_cita');
   };
 
+  const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + (parseFloat(proc.precio_base || 0) * (proc.cantidad || 1)), 0);
+  const totalAPagar = totalProcedimientos - (parseFloat(abono) || 0);
+
   const guardarCitaCompleta = () => {
     if (!datosPaciente.nombre) { alert("Debes seleccionar o escribir un paciente."); return; }
     if (!fecha || !hora) { alert("Fecha y hora son obligatorios."); return; }
 
-    // Magia: Desempaquetamos las cantidades antes de mandarlas a PHP
-    // Si el usuario eligió "4", creamos 4 filas idénticas en el arreglo
     const procedimientosExpandidos = [];
     procedimientosSeleccionados.forEach(p => {
       for (let i = 0; i < (p.cantidad || 1); i++) {
         procedimientosExpandidos.push({
           id: p.id,
           precio_base: p.precio_base,
-          // Ya no hay inputs individuales, se fuerza la fecha y hora general de la cita
           fecha_procedimiento: fecha,
           hora_procedimiento: hora 
         });
@@ -165,7 +167,16 @@ export default function Citas() {
 
     const payload = {
       paciente: datosPaciente,
-      cita: { id: idCitaEditando, fecha, hora, estado: estadoCita },
+      // Se inyecta abono, total y restante para el backend
+      cita: { 
+        id: idCitaEditando, 
+        fecha, 
+        hora, 
+        estado: estadoCita,
+        abono: parseFloat(abono) || 0,
+        total_pagar: totalProcedimientos,
+        restante: totalAPagar
+      },
       procedimientos: procedimientosExpandidos 
     };
 
@@ -179,14 +190,11 @@ export default function Citas() {
       if (data.success) {
         alert("Cita y procedimientos guardados exitosamente.");
         resetFormulario();
-        recargarCitas(); // Refresca en el fondo
-        // NO cambiamos setVista('lista'), dejamos al usuario en 'nueva_cita' limpia
+        recargarCitas(); 
+        setVista('lista'); // <-- Retorno automático a la lista de citas
       } else { alert("Error: " + data.error); }
     });
   };
-
-  const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + (parseFloat(proc.precio_base || 0) * (proc.cantidad || 1)), 0);
-  const totalAPagar = totalProcedimientos - (parseFloat(abono) || 0);
 
   // ================= 3. GENERADOR DE PDF =================
   const generarPresupuestoPDF = () => {
@@ -339,10 +347,7 @@ export default function Citas() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          
-          {/* AÑADIDO: step="900" obliga al selector nativo a mostrar intervalos de 15 minutos */}
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" step="900" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" value={profesional} onChange={e => setProfesional(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
         </section>
 
@@ -369,30 +374,19 @@ export default function Citas() {
           </div>
         </section>
 
-        {/* --- PROCEDIMIENTOS ASIGNADOS CON SELECTOR DE CANTIDAD --- */}
+        {/* --- PROCEDIMIENTOS ASIGNADOS CON POPUP --- */}
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
-            Procedimientos Programados
-            {procedimientosSeleccionados.length > 0 && <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-black">{procedimientosSeleccionados.length}</span>}
-          </h2>
-          
-          <div className="bg-surface p-4 rounded-xl border border-gray-200 max-h-40 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-            {catalogoProcedimientos.map(proc => (
-              <label key={proc.id} className="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer">
-                <input type="checkbox" checked={!!procedimientosSeleccionados.find(p => p.id === proc.id)} onChange={() => {
-                  if (procedimientosSeleccionados.find(p => p.id === proc.id)) {
-                    setProcedimientosSeleccionados(procedimientosSeleccionados.filter(p => p.id !== proc.id));
-                  } else { 
-                    setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, cantidad: 1 }]); 
-                  }
-                }} className="w-5 h-5 accent-primary" />
-                <span className="flex-1 text-sm font-medium">{proc.nombre}</span>
-                <span className="text-muted font-bold text-sm">${parseFloat(proc.precio_base).toFixed(2)}</span>
-              </label>
-            ))}
+          <div className="flex justify-between items-center mb-4 border-b pb-2">
+            <h2 className="text-xl font-bold text-dark flex items-center gap-2">
+              Procedimientos Programados
+              {procedimientosSeleccionados.length > 0 && <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-black">{procedimientosSeleccionados.length}</span>}
+            </h2>
+            <button type="button" onClick={() => setModalProcedimientos(true)} className="bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
+              <Plus size={16} /> Agregar Procedimiento
+            </button>
           </div>
 
-          {procedimientosSeleccionados.length > 0 && (
+          {procedimientosSeleccionados.length > 0 ? (
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
               {procedimientosSeleccionados.map(p => (
                 <div key={p.id} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
@@ -421,6 +415,10 @@ export default function Citas() {
                 <span>Costo Total:</span><span>${totalProcedimientos.toFixed(2)}</span>
               </div>
             </div>
+          ) : (
+             <div className="text-center p-6 bg-surface rounded-xl border border-dashed border-gray-300 text-muted text-sm">
+                No hay procedimientos asignados a esta cita aún.
+             </div>
           )}
         </section>
 
@@ -441,12 +439,17 @@ export default function Citas() {
           </div>
         </section>
 
-        {/* --- PAGOS (Simplificado para Citas) --- */}
+        {/* --- PAGOS CON BOTÓN DE APLICAR ABONO --- */}
         <section className="p-5 bg-surface border border-gray-200 rounded-2xl">
           <label className="block text-sm font-medium text-muted mb-1">Monto a Cobrar / Abonar en Caja</label>
-          <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full p-3 bg-white border border-gray-200 rounded-full font-bold text-dark" />
-          <div className="mt-4 flex justify-between text-sm bg-white p-3 rounded-xl border">
-            <span className="font-bold text-muted">Total procedimientos: ${totalProcedimientos.toFixed(2)}</span>
+          <div className="flex gap-2 mb-2">
+            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="flex-1 p-3 bg-white border border-gray-200 rounded-full font-bold text-dark outline-none focus:border-primary" />
+            <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="bg-dark hover:bg-black text-white px-5 py-3 rounded-full font-bold text-sm shadow-sm flex items-center gap-2 shrink-0 transition-colors">
+              <Check size={16} /> Aplicar
+            </button>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-between text-sm bg-white p-4 rounded-xl border gap-2">
+            <span className="font-bold text-muted">Total procedimientos: <span className="text-dark">${totalProcedimientos.toFixed(2)}</span></span>
             <span className="font-black text-danger">Por cobrar: ${totalAPagar > 0 ? totalAPagar.toFixed(2) : '0.00'}</span>
           </div>
         </section>
@@ -455,6 +458,37 @@ export default function Citas() {
       <button onClick={guardarCitaCompleta} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2">
         <Check size={24} /> {idCitaEditando ? "Actualizar Cita y Paciente" : "Guardar Registro y Cita"}
       </button>
+
+      {/* POPUP DE PROCEDIMIENTOS */}
+      {modalProcedimientos && (
+        <div className="fixed inset-0 bg-dark/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-black text-lg text-dark">Catálogo Clínico</h3>
+              <button onClick={() => setModalProcedimientos(false)} className="p-2 hover:bg-surface rounded-full text-muted hover:text-danger transition-colors"><X size={20}/></button>
+            </div>
+            <div className="overflow-y-auto flex-1 grid gap-2 pr-2">
+              {catalogoProcedimientos.map(proc => (
+                <label key={proc.id} className="flex items-center gap-3 p-3 bg-surface hover:bg-white rounded-xl border border-gray-100 cursor-pointer transition-colors shadow-sm">
+                  <input type="checkbox" checked={!!procedimientosSeleccionados.find(p => p.id === proc.id)} onChange={() => {
+                    if (procedimientosSeleccionados.find(p => p.id === proc.id)) {
+                      setProcedimientosSeleccionados(procedimientosSeleccionados.filter(p => p.id !== proc.id));
+                    } else { 
+                      setProcedimientosSeleccionados([...procedimientosSeleccionados, { ...proc, cantidad: 1 }]); 
+                    }
+                  }} className="w-5 h-5 accent-primary shrink-0" />
+                  <span className="flex-1 text-sm font-bold text-dark">{proc.nombre}</span>
+                  <span className="text-primary font-black text-sm">${parseFloat(proc.precio_base).toFixed(2)}</span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end">
+              <button onClick={() => setModalProcedimientos(false)} className="bg-primary hover:bg-primary-hover text-white font-bold py-3 px-8 rounded-full shadow-sm transition-transform hover:scale-105">Listo</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

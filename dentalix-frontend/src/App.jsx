@@ -11,6 +11,39 @@ import Citas from './Citas';
 import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
+// =========================================================================
+// INTERCEPTOR GLOBAL MULTIUSUARIO
+// Agrega el usuario_id automáticamente a todas las llamadas hacia api.php
+// =========================================================================
+const originalFetch = window.fetch;
+window.fetch = async function (...args) {
+  let [resource, config] = args;
+  
+  if (typeof resource === 'string' && resource.includes('api.php')) {
+    const userId = localStorage.getItem('dentalix_usuario_id') || '1';
+    
+    if (!config) { config = { method: 'GET' }; }
+
+    if (!config.method || config.method.toUpperCase() === 'GET') {
+      const separador = resource.includes('?') ? '&' : '?';
+      resource += `${separador}usuario_id=${userId}`;
+    } else if (config.method.toUpperCase() === 'POST') {
+      if (config.body && typeof config.body === 'string') {
+        try {
+          let bodyObj = JSON.parse(config.body);
+          bodyObj.usuario_id = userId;
+          config.body = JSON.stringify(bodyObj);
+        } catch(e) { /* Ignorar si no es JSON */ }
+      } else if (config.body instanceof FormData) {
+        config.body.append('usuario_id', userId);
+      }
+    }
+  }
+  return originalFetch.apply(this, [resource, config]);
+};
+// =========================================================================
+
+
 function Layout({ children, nombreClinica }) {
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300">
@@ -102,10 +135,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    // BLOQUEO DE ZOOM EN MÓVILES (Inyecta la etiqueta meta dinámicamente)
+    let viewport = document.querySelector('meta[name="viewport"]');
+    if (!viewport) {
+      viewport = document.createElement('meta');
+      viewport.name = 'viewport';
+      document.head.appendChild(viewport);
+    }
+    viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
+
     if (localStorage.getItem('dentalix_auth') === 'true') setIsAuthenticated(true);
     if (localStorage.getItem('dentalix_dark') === 'true') document.documentElement.classList.add('dark');
 
-    // Carga de color ULTRA-RÁPIDA desde Caché (Elimina el destello)
+    // Carga de color ULTRA-RÁPIDA desde Caché
     const colorCache = localStorage.getItem('dentalix_color_primario');
     const nombreCache = localStorage.getItem('dentalix_nombre_app');
     
@@ -133,13 +175,16 @@ export default function App() {
       .catch(err => console.error("Error al cargar ajustes globales:", err));
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = (usuarioId) => {
     localStorage.setItem('dentalix_auth', 'true');
+    // Guardamos el ID del usuario. Si no se pasa, usamos 1 como seguridad para que no colapse el sistema
+    localStorage.setItem('dentalix_usuario_id', usuarioId || '1');
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('dentalix_auth');
+    localStorage.removeItem('dentalix_usuario_id');
     setIsAuthenticated(false);
   };
 
@@ -149,7 +194,6 @@ export default function App() {
     <Router>
       <Layout nombreClinica={nombreClinica}>
         <Routes>
-          {/* REORDENADO: Ruta raíz apunta a Recordatorios ("Hoy") */}
           <Route path="/" element={<Recordatorios />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/agenda" element={<Agenda />} />

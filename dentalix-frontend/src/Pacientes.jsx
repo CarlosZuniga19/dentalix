@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -41,7 +41,7 @@ export default function Pacientes() {
   const [todasLasCitas, setTodasLasCitas] = useState([]);
   
   const [datosPaciente, setDatosPaciente] = useState({
-    nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: ''
+    nombre: '', telefono: '', notas: '', fechaNacimiento: '1998-01-01', direccion: '', ocupacion: '', motivo: ''
   });
 
   const [tratamientosGuardados, setTratamientosGuardados] = useState([]);
@@ -71,7 +71,7 @@ export default function Pacientes() {
   };
 
   const handleNuevoPaciente = () => {
-    setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
+    setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '1998-01-01', direccion: '', ocupacion: '', motivo: '' });
     setImagenes([]); 
     setArchivosLocales([]);
     setHistorialOdontograma({});
@@ -83,7 +83,7 @@ export default function Pacientes() {
   const abrirEdicionPaciente = (p) => {
     setDatosPaciente({
       id: p.id, nombre: p.nombre || '', telefono: p.telefono || '', notas: p.notas || '',
-      fechaNacimiento: p.fecha_nacimiento || '', direccion: p.direccion || '', ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
+      fechaNacimiento: p.fecha_nacimiento || '1998-01-01', direccion: p.direccion || '', ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
     });
     setArchivosLocales([]);
 
@@ -149,6 +149,9 @@ export default function Pacientes() {
   };
 
   const guardarTratamiento = () => {
+    if (!tratamientoTemp.fecha) { alert("Selecciona una fecha."); return; }
+    if (tratamientoTemp.procedimientos.length === 0 || !tratamientoTemp.procedimientos[0]) { alert("Selecciona un procedimiento."); return; }
+
     setTratamientosGuardados([...tratamientosGuardados, tratamientoTemp]);
     setModalTratamiento(false);
     setTratamientoTemp({ fecha: '', hora: '', procedimientos: [], dientes: [] });
@@ -212,6 +215,33 @@ export default function Pacientes() {
     navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
+  // --- Lógica Auxiliar para WhatsApp ---
+  const getWaLink = (telefono) => {
+    if (!telefono) return '#';
+    let num = telefono.replace(/\D/g, ''); 
+    if (num.length === 10) num = '52' + num;
+    return `https://wa.me/${num}`;
+  };
+
+  // --- Lógica Auxiliar para Dropdowns de Fecha de Nacimiento ---
+  const getFnParts = (fecha) => {
+    if (!fecha) return ['1998', '01', '01'];
+    const parts = fecha.split('-');
+    if (parts.length === 3) return parts;
+    return ['1998', '01', '01'];
+  };
+
+  const handleFechaNacimiento = (type, value) => {
+    const current = getFnParts(datosPaciente.fechaNacimiento);
+    let y = current[0], m = current[1], d = current[2];
+    if (type === 'year') y = value;
+    if (type === 'month') m = value;
+    if (type === 'day') d = value;
+    setDatosPaciente({ ...datosPaciente, fechaNacimiento: `${y}-${m}-${d}` });
+  };
+
+  const [fnYear, fnMonth, fnDay] = getFnParts(datosPaciente.fechaNacimiento);
+
   // ================= VISTA: LISTA DE PACIENTES =================
   if (vista === 'lista') {
     const filtrados = listaPacientes.filter(p => p.nombre.toLowerCase().includes(busquedaP.toLowerCase()));
@@ -226,13 +256,37 @@ export default function Pacientes() {
           {filtrados.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead><tr className="bg-surface border-b border-gray-100 text-muted font-bold text-xs uppercase"><th className="p-4">Nombre</th><th className="p-4">Teléfono</th><th className="p-4">Ocupación</th><th className="p-4">Motivo</th><th className="p-4 text-center">Cita Pendiente</th></tr></thead>
+                <thead>
+                  <tr className="bg-surface border-b border-gray-100 text-muted font-bold text-xs uppercase">
+                    <th className="p-4">Nombre</th>
+                    <th className="p-4">Teléfono</th>
+                    <th className="p-4 hidden md:table-cell">Ocupación</th>
+                    <th className="p-4 hidden md:table-cell">Motivo</th>
+                    <th className="p-4 text-center">Cita Pendiente</th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-50 text-sm text-dark font-medium">
                   {filtrados.map(p => {
                     const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
                     return (
                       <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 transition-colors cursor-pointer group">
-                        <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td><td className="p-4 text-muted">{p.telefono || '—'}</td><td className="p-4">{p.ocupacion || '—'}</td><td className="p-4 truncate max-w-[200px]">{p.motivo_consulta || '—'}</td><td className="p-4 text-center font-black">{tieneCita ? <span className="text-primary bg-primary/10 px-3 py-1 rounded-full">Sí</span> : <span className="text-muted">No</span>}</td>
+                        <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td>
+                        <td className="p-4 text-muted">
+                          {p.telefono ? (
+                            <a 
+                              href={getWaLink(p.telefono)} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              onClick={(e) => e.stopPropagation()} 
+                              className="text-[#25D366] hover:underline flex items-center gap-1.5 font-bold"
+                            >
+                              <MessageCircle size={15} /> {p.telefono}
+                            </a>
+                          ) : '—'}
+                        </td>
+                        <td className="p-4 hidden md:table-cell">{p.ocupacion || '—'}</td>
+                        <td className="p-4 truncate max-w-[200px] hidden md:table-cell">{p.motivo_consulta || '—'}</td>
+                        <td className="p-4 text-center font-black">{tieneCita ? <span className="text-primary bg-primary/10 px-3 py-1 rounded-full">Sí</span> : <span className="text-muted">No</span>}</td>
                       </tr>
                     )
                   })}
@@ -273,7 +327,26 @@ export default function Pacientes() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="date" placeholder="Fecha de Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" title="Fecha de Nacimiento" />
+            
+            {/* TRES DROPDOWNS PARA FECHA DE NACIMIENTO */}
+            <div className="flex gap-2 w-full" title="Fecha de Nacimiento">
+              <select value={fnYear} onChange={e => handleFechaNacimiento('year', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Año</option>
+                {Array.from({length: 100}, (_, i) => new Date().getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select value={fnMonth} onChange={e => handleFechaNacimiento('month', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Mes</option>
+                {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => {
+                   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                   return <option key={m} value={m}>{nombresMeses[i]}</option>
+                })}
+              </select>
+              <select value={fnDay} onChange={e => handleFechaNacimiento('day', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Día</option>
+                {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+
             <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
             <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
             <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
@@ -289,7 +362,10 @@ export default function Pacientes() {
           <div className="flex flex-wrap gap-2">
             {tratamientosGuardados.length === 0 && <span className="text-sm text-muted">Sin tratamientos guardados en este expediente.</span>}
             {tratamientosGuardados.map((trat, i) => (
-              <div key={i} className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-full flex flex-col shadow-sm"><span>{trat.fecha} {trat.hora}</span><span className="opacity-90">{trat.procedimientos.length} proc. / {trat.dientes.length} dientes</span></div>
+              <div key={i} className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-full flex flex-col shadow-sm">
+                <span>{trat.fecha}</span>
+                <span className="opacity-90">{trat.procedimientos.length} proc. / {trat.dientes.length} dientes</span>
+              </div>
             ))}
           </div>
         </section>
@@ -479,18 +555,26 @@ export default function Pacientes() {
         <div className="fixed inset-0 bg-dark/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-xl mt-20 sm:mt-0">
             <h3 className="text-xl font-bold mb-4">Agregar Tratamiento Realizado</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div><label className="block text-xs font-bold text-muted">Fecha</label><input type="date" value={tratamientoTemp.fecha} onChange={e=>setTratamientoTemp({...tratamientoTemp, fecha: e.target.value})} className="w-full p-2 bg-surface rounded" /></div>
-              <div><label className="block text-xs font-bold text-muted">Hora</label><input type="time" value={tratamientoTemp.hora} onChange={e=>setTratamientoTemp({...tratamientoTemp, hora: e.target.value})} className="w-full p-2 bg-surface rounded" /></div>
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-muted mb-1">Fecha del procedimiento</label>
+              <input type="date" value={tratamientoTemp.fecha} onChange={e=>setTratamientoTemp({...tratamientoTemp, fecha: e.target.value})} className="w-full p-2 bg-surface rounded border border-gray-200 outline-none focus:border-primary" />
             </div>
-            <label className="block text-xs font-bold text-muted mb-2">Procedimientos realizados (Selección múltiple)</label>
-            <select multiple value={tratamientoTemp.procedimientos} onChange={e=>setTratamientoTemp({...tratamientoTemp, procedimientos: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface rounded border mb-4 h-24 text-sm" size="3">
-              {catalogoProcedimientos.map(p => <option key={p.id} value={p.nombre}>{p.nombre}</option>)}
+            
+            <label className="block text-xs font-bold text-muted mb-2">Procedimiento realizado (Selecciona uno solo)</label>
+            <select 
+              value={tratamientoTemp.procedimientos[0] || ''} 
+              onChange={e=>setTratamientoTemp({...tratamientoTemp, procedimientos: [e.target.value]})} 
+              className="w-full p-2 bg-surface rounded border border-gray-200 mb-4 h-32 text-sm outline-none focus:border-primary" 
+              size="5"
+            >
+              {catalogoProcedimientos.map(p => <option key={p.id} value={p.nombre} className="p-1">{p.nombre}</option>)}
             </select>
+            
             <label className="block text-xs font-bold text-muted mb-2">Dientes aplicados (Múltiple)</label>
-            <select multiple value={tratamientoTemp.dientes} onChange={e=>setTratamientoTemp({...tratamientoTemp, dientes: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface rounded border mb-6 h-24 text-sm font-mono" size="3">
-              {DIENTES_ADULTOS.map(d => <option key={d} value={d}>Diente {d}</option>)}
+            <select multiple value={tratamientoTemp.dientes} onChange={e=>setTratamientoTemp({...tratamientoTemp, dientes: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface rounded border border-gray-200 mb-6 h-32 text-sm font-mono outline-none focus:border-primary" size="5">
+              {DIENTES_ADULTOS.map(d => <option key={d} value={d} className="p-1">Diente {d}</option>)}
             </select>
+            
             <div className="flex gap-4">
               <button onClick={() => setModalTratamiento(false)} className="flex-1 py-3 font-bold text-muted bg-surface rounded-full">Cancelar</button>
               <button onClick={guardarTratamiento} className="flex-1 py-3 font-bold text-white bg-primary rounded-full">Agregar Tratamiento</button>

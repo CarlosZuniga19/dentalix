@@ -22,7 +22,8 @@ export default function Login({ onLogin }) {
     .then(data => {
       setCargando(false);
       if (data.success) {
-        onLogin(); // Función que le avisa a App.jsx que ya puede mostrar el menú
+        // MODIFICADO: Pasamos el usuario_id devuelto por la API a App.jsx para fijar la sesión
+        onLogin(data.usuario_id); 
       } else {
         setError(data.mensaje);
       }
