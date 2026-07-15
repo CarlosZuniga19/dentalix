@@ -12,7 +12,7 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
 // =========================================================================
-// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"
+// C ONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
 // =========================================================================
 export const AppContext = createContext();
 export const useAppContext = () => useContext(AppContext);
