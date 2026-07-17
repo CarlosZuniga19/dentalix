@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useAppContext } from './App';
@@ -27,6 +27,61 @@ const DIENTES_ADULTOS = [
   18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28,
   48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38
 ];
+
+// ============================================================================
+// FUNCIONES AUXILIARES PARA RENDERIZADO NATIVO EN PDF (SIN HTML2CANVAS)
+// ============================================================================
+const hexToRgb = (hex) => {
+  let c;
+  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+    c = hex.substring(1).split('');
+    if (c.length === 3) { c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
+    c = '0x' + c.join('');
+    return [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  }
+  return [0, 0, 0];
+};
+const capturarDiente = (diente, colorStr) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = 3; // Alta resolución para el PDF
+      canvas.width = (img.naturalWidth || 50) * scale;
+      canvas.height = (img.naturalHeight || 100) * scale;
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (colorStr && colorStr !== 'transparent' && colorStr !== '#FFFFFF') {
+        // Rellenar de color sólido
+        ctx.fillStyle = colorStr;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Recortar con la forma del diente original
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Dibujar las líneas del diente encima
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        // Diente vacío
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+      
+      // NUEVO: Calcular la proporción natural para evitar el aplastamiento
+      const ratio = img.naturalHeight > 0 ? (img.naturalWidth / img.naturalHeight) : 0.5;
+
+      resolve({
+        imgData: canvas.toDataURL('image/png', 1.0),
+        ratio: ratio
+      });
+    };
+    img.onerror = () => resolve(null);
+    img.src = `/odontograma/${diente}.svg`;
+  });
+};
+// ============================================================================
 
 export default function Pacientes() {
   const navigate = useNavigate();
@@ -226,7 +281,226 @@ export default function Pacientes() {
   const irACrearCita = () => {
     navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
   };
+// --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO (RENDERIZADO NATIVO PROPORCIONAL) ---
+  const generarExpedientePDF = async () => {
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const primaryColor = [139, 92, 246]; 
 
+    // --- ENCABEZADO ---
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, 210, 35, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("EXPEDIENTE CLÍNICO", 14, 23);
+    
+    doc.setFontSize(10);
+    doc.text("DENTALIX CLÍNICA", 155, 23);
+
+    let yPos = 45;
+
+    // --- DATOS DEL PACIENTE ---
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(12);
+    doc.text("DATOS DEL PACIENTE", 14, yPos);
+    yPos += 8;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Nombre: ${datosPaciente.nombre || 'N/A'}`, 14, yPos);
+    doc.text(`Teléfono: ${datosPaciente.telefono || 'N/A'}`, 110, yPos);
+    yPos += 6;
+    doc.text(`Nacimiento: ${datosPaciente.fechaNacimiento || 'N/A'}`, 14, yPos);
+    doc.text(`Ocupación: ${datosPaciente.ocupacion || 'N/A'}`, 110, yPos);
+    yPos += 6;
+    doc.text(`Dirección: ${datosPaciente.direccion || 'N/A'}`, 14, yPos);
+    yPos += 6;
+    const motivoText = doc.splitTextToSize(`Motivo: ${datosPaciente.motivo || 'N/A'}`, 180);
+    doc.text(motivoText, 14, yPos);
+    yPos += (motivoText.length * 5) + 5;
+
+    // --- ANAMNESIS ---
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("ANAMNESIS (Padecimientos Médicos)", 14, yPos);
+    yPos += 8;
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+
+    const padecimientosSi = Object.entries(anamnesis).filter(([_, val]) => val.estado === 'Si');
+    
+    if (padecimientosSi.length === 0) {
+      doc.text("Negativo para todos los padecimientos médicos interrogados.", 14, yPos);
+      yPos += 8;
+    } else {
+      padecimientosSi.forEach(([idx, val]) => {
+        const text = `• ${ANAMNESIS_ITEMS[idx]}${val.detalle ? `: ${val.detalle}` : ''}`;
+        const lines = doc.splitTextToSize(text, 180);
+        doc.text(lines, 14, yPos);
+        yPos += (lines.length * 5);
+      });
+      yPos += 4;
+    }
+
+    // Control de salto de página antes del odontograma
+    if (yPos + 80 > 270) {
+      doc.addPage();
+      yPos = 20;
+    }
+
+    // --- MAPEO DENTAL (ODONTOGRAMA EN PDF NATIVO) ---
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("MAPEO DENTAL (ODONTOGRAMA)", 14, yPos);
+    yPos += 10;
+
+    // Medidas para mantener proporción anatómica y centrado en la hoja A4
+    const anchoCelda = 8; // mm (espacio máximo a lo ancho por diente)
+    const maxAltoDiente = 14; // mm (límite anatómico de altura)
+    const separacion = 2; // mm
+    const anchoTotalFila = (16 * anchoCelda) + (15 * separacion); // 158mm
+    const xInicial = (210 - anchoTotalFila) / 2; // 26mm (Centrado perfecto)
+
+    // FILA 1: MAXILAR (Dientes Superiores)
+    doc.setFontSize(8);
+    for (let i = 0; i < 16; i++) {
+      const diente = DIENTES_ADULTOS[i];
+      const condicion = historialOdontograma[diente];
+      const color = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+      
+      const captura = await capturarDiente(diente, color);
+      const xCelda = xInicial + (i * (anchoCelda + separacion));
+      
+      // Imprimir el número arriba
+      if (color !== 'transparent') {
+        doc.setTextColor(...hexToRgb(color));
+        doc.setFont("helvetica", "bold");
+      } else {
+        doc.setTextColor(100, 100, 100);
+        doc.setFont("helvetica", "normal");
+      }
+      doc.text(diente.toString(), xCelda + (anchoCelda / 2) - 1.5, yPos);
+
+      // Imprimir el gráfico anatómico del diente
+      if (captura && captura.imgData) {
+        let toothW = anchoCelda;
+        let toothH = toothW / captura.ratio;
+        
+        // Si el diente es muy esbelto, limitamos la altura para que no se estire
+        if (toothH > maxAltoDiente) {
+          toothH = maxAltoDiente;
+          toothW = toothH * captura.ratio;
+        }
+        
+        // Centrar imagen en su celda y alinear abajo
+        const offsetX = xCelda + (anchoCelda - toothW) / 2;
+        const offsetY = yPos + 3 + (maxAltoDiente - toothH); 
+
+        doc.addImage(captura.imgData, 'PNG', offsetX, offsetY, toothW, toothH);
+      }
+    }
+
+    yPos += maxAltoDiente + 10;
+
+    // FILA 2: MANDÍBULA (Dientes Inferiores)
+    for (let i = 16; i < 32; i++) {
+      const diente = DIENTES_ADULTOS[i];
+      const condicion = historialOdontograma[diente];
+      const color = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+      
+      const captura = await capturarDiente(diente, color);
+      const xCelda = xInicial + ((i - 16) * (anchoCelda + separacion));
+      
+      // Imprimir el gráfico anatómico del diente
+      if (captura && captura.imgData) {
+        let toothW = anchoCelda;
+        let toothH = toothW / captura.ratio;
+        
+        if (toothH > maxAltoDiente) {
+          toothH = maxAltoDiente;
+          toothW = toothH * captura.ratio;
+        }
+        
+        // Centrar imagen en su celda y alinear arriba
+        const offsetX = xCelda + (anchoCelda - toothW) / 2;
+        const offsetY = yPos; 
+
+        doc.addImage(captura.imgData, 'PNG', offsetX, offsetY, toothW, toothH);
+      }
+
+      // Imprimir el número abajo
+      if (color !== 'transparent') {
+        doc.setTextColor(...hexToRgb(color));
+        doc.setFont("helvetica", "bold");
+      } else {
+        doc.setTextColor(100, 100, 100);
+        doc.setFont("helvetica", "normal");
+      }
+      doc.text(diente.toString(), xCelda + (anchoCelda / 2) - 1.5, yPos + maxAltoDiente + 5);
+    }
+
+    yPos += maxAltoDiente + 14;
+
+    // --- LISTADO DE PROCEDIMIENTOS CON BOLITA DE COLOR ---
+    const dientesConCondicion = Object.entries(historialOdontograma);
+    if (dientesConCondicion.length > 0) {
+      doc.setTextColor(...primaryColor);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text("DIAGNÓSTICOS DEL ODONTOGRAMA", 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      dientesConCondicion.forEach(([diente, data]) => {
+        if (yPos > 275) { doc.addPage(); yPos = 20; }
+        
+        // Dibujar bolita de color
+        doc.setFillColor(...hexToRgb(data.color));
+        doc.circle(16, yPos - 1.2, 2, 'F');
+        
+        // Dibujar texto (Diente XX: Procedimiento)
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Diente ${diente}: ${data.nombre}`, 21, yPos);
+        yPos += 6;
+      });
+      yPos += 4;
+    }
+
+    // --- HISTORIAL DE TRATAMIENTOS (TABLA) ---
+    if (tratamientosGuardados.length > 0) {
+      if (yPos > 240) { doc.addPage(); yPos = 20; }
+      
+      doc.setTextColor(...primaryColor);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("HISTORIAL DE TRATAMIENTOS REALIZADOS", 14, yPos);
+      yPos += 6;
+
+      const tratData = tratamientosGuardados.map(t => [
+        t.fecha,
+        t.procedimientos.join(', '),
+        t.dientes.join(', ') || 'N/A'
+      ]);
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Fecha', 'Procedimiento(s)', 'Diente(s)']],
+        body: tratData,
+        theme: 'striped',
+        headStyles: { fillColor: primaryColor, textColor: 255 },
+        styles: { fontSize: 9 }
+      });
+    }
+
+    doc.save(`Expediente_${datosPaciente.nombre.replace(/\s+/g, '_')}.pdf`);
+  };
   // --- Lógica Auxiliar para WhatsApp ---
   const getWaLink = (telefono) => {
     if (!telefono) return '#';
@@ -335,7 +609,14 @@ export default function Pacientes() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
+            <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
+            {datosPaciente.id && (
+              <button onClick={generarExpedientePDF} className="bg-primary/10 text-primary hover:bg-primary hover:text-white px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0">
+                <Printer size={16}/> Imprimir PDF
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
@@ -386,8 +667,8 @@ export default function Pacientes() {
       </div>
 
       {/* ================= SECCIÓN ODONTOGRAMA ================= */}
-      <section className="w-full py-6">
-        <div className="px-2 sm:px-8 mb-8">
+      <section className="w-full py-6 bg-white rounded-3xl shadow-sm border border-gray-100">
+        <div className="px-6 sm:px-8 mb-8 mt-2">
           <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
           <p className="text-xs text-muted">Toca un diente para asignarle un padecimiento.</p>
         </div>

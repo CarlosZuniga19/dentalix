@@ -47,12 +47,45 @@ export default function Recordatorios() {
     setEditandoNotas(prev => ({ ...prev, [id_cita]: !prev[id_cita] }));
   };
 
-  // Formateador inteligente para enlace de WhatsApp (asume lada 52 si tiene 10 dígitos)
+  // Formateador simple para el enlace del teléfono en la cabecera
   const getWaLink = (telefono) => {
     if (!telefono) return '#';
     let num = telefono.replace(/\D/g, ''); // Limpia guiones y espacios
     if (num.length === 10) num = '52' + num;
     return `https://wa.me/${num}`;
+  };
+
+  // Lógica inteligente para el botón de Enviar Recordatorio
+  const abrirWhatsAppRecordatorio = (cita) => {
+    if (!cita.telefono) {
+      alert("El paciente no tiene un número de teléfono registrado.");
+      return;
+    }
+    
+    let num = cita.telefono.replace(/\D/g, ''); 
+    if (num.length === 10) num = '52' + num;
+
+    const hoyStr = getFechaHoyLocal();
+    const hoyObj = new Date(hoyStr + 'T00:00:00');
+    const citaObj = new Date(cita.fecha + 'T00:00:00');
+    const diffDays = Math.ceil((citaObj - hoyObj) / (1000 * 60 * 60 * 24));
+
+    let textoWa = `Hola ${cita.paciente}, para recordarte tu cita `;
+    
+    if (diffDays <= 0) {
+      textoWa += `el día de hoy a las ${cita.hora.substring(0,5)} hrs.`;
+    } else if (diffDays === 1) {
+      textoWa += `el día de mañana a las ${cita.hora.substring(0,5)} hrs.`;
+    } else {
+      const opcionesFecha = { weekday: 'long', day: 'numeric', month: 'long' };
+      const fechaFormateada = citaObj.toLocaleDateString('es-MX', opcionesFecha);
+      textoWa += `el ${fechaFormateada} a las ${cita.hora.substring(0,5)} hrs.`;
+    }
+    
+    textoWa += ` ¡Te esperamos!`;
+    
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(textoWa)}`;
+    window.open(url, '_blank');
   };
 
   const guardarRecordatorio = (id_cita, texto) => {
@@ -103,12 +136,12 @@ export default function Recordatorios() {
           citasHoy.map((cita) => (
             <div key={cita.id_cita} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col transition-all hover:shadow-md">
               
-              {/* Información principal de la cita */}
-              <div className="p-5 md:p-6 flex justify-between items-center gap-4">
+              {/* Información principal de la cita (ligeramente más compacta) */}
+              <div className="p-4 md:p-5 flex justify-between items-center gap-4">
                 
                 {/* Lado izquierdo: Hora y Paciente */}
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2 text-primary font-black text-xl mb-3">
+                  <div className="flex items-center gap-2 text-primary font-black text-xl mb-2">
                     <Clock size={20} />
                     {cita.hora.substring(0, 5)} hrs
                   </div>
@@ -151,7 +184,7 @@ export default function Recordatorios() {
 
               {/* Área de Nota Guardada (Modo Lectura) - Diseño naranja */}
               {cita.recordatorio && !editandoNotas[cita.id_cita] && (
-                <div className="bg-[#FFF8F3] border-t border-orange-100 p-5 md:px-6 flex items-start gap-3">
+                <div className="bg-[#FFF8F3] border-t border-orange-100 p-4 md:px-5 flex items-start gap-3">
                   <Bell size={20} className="text-orange-500 shrink-0 mt-0.5" />
                   <p className="text-orange-800 font-medium text-sm leading-relaxed whitespace-pre-wrap">
                     {cita.recordatorio}
@@ -161,7 +194,7 @@ export default function Recordatorios() {
 
               {/* Área de Edición de Nota (Caja de Texto) */}
               {editandoNotas[cita.id_cita] && (
-                <div className="p-5 md:p-6 bg-surface/50 border-t border-gray-100 flex flex-col">
+                <div className="p-4 md:p-5 bg-surface/50 border-t border-gray-100 flex flex-col">
                   <label className="text-sm font-bold text-dark mb-2 flex items-center gap-2">
                     <AlertCircle size={16} className="text-muted" /> Escribe la nota o recordatorio:
                   </label>
@@ -172,17 +205,17 @@ export default function Recordatorios() {
                     className="w-full flex-1 min-h-[80px] p-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/50 text-dark resize-none transition-colors"
                   ></textarea>
                   
-                  <div className="mt-4 flex justify-end gap-2">
+                  <div className="mt-3 flex justify-end gap-2">
                     <button 
                       onClick={() => toggleEdicionNota(cita.id_cita)}
-                      className="px-5 py-2.5 rounded-full font-bold text-muted hover:bg-gray-200 transition-colors text-sm"
+                      className="px-5 py-2 rounded-full font-bold text-muted hover:bg-gray-200 transition-colors text-sm"
                     >
                       Cancelar
                     </button>
                     <button 
                       onClick={() => guardarRecordatorio(cita.id_cita, cita.recordatorio)}
                       disabled={guardandoId === cita.id_cita}
-                      className={`px-6 py-2.5 rounded-full font-bold shadow-sm flex items-center gap-2 transition-all text-sm ${
+                      className={`px-5 py-2 rounded-full font-bold shadow-sm flex items-center gap-2 transition-all text-sm ${
                         mensajeExito === cita.id_cita 
                           ? 'bg-green-500 text-white' 
                           : 'bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50'
@@ -191,14 +224,25 @@ export default function Recordatorios() {
                       {guardandoId === cita.id_cita ? (
                         'Guardando...'
                       ) : mensajeExito === cita.id_cita ? (
-                        <><Check size={18} /> ¡Guardado!</>
+                        <><Check size={16} /> ¡Guardado!</>
                       ) : (
-                        <><Save size={18} /> Guardar Nota</>
+                        <><Save size={16} /> Guardar Nota</>
                       )}
                     </button>
                   </div>
                 </div>
               )}
+
+              {/* Botón Inferior: Enviar Recordatorio WhatsApp (Reducido y alineado a la derecha) */}
+              <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                <button
+                  onClick={() => abrirWhatsAppRecordatorio(cita)}
+                  className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-5 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
+                >
+                  <MessageCircle size={14} />
+                  Enviar Recordatorio
+                </button>
+              </div>
 
             </div>
           ))

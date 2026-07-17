@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 
 export default function Calendario() {
   const navigate = useNavigate();
@@ -62,13 +62,24 @@ export default function Calendario() {
   const semanas = generarMes();
   const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-  const handleDiaClick = (fechaStr) => {
-    if (!fechaStr || !modoBloqueo) return;
+  // NUEVA LÓGICA: Si no está en modo bloqueo, manda a crear una cita con la fecha.
+  const handleDiaClick = (fechaStr, e) => {
+    if (!fechaStr) return;
     
-    if (diasBloqueados.includes(fechaStr)) {
-      setDiasBloqueados(diasBloqueados.filter(d => d !== fechaStr));
+    // Si el usuario hizo clic directamente en una cita (botón), no queremos que se ejecute el clic del fondo de la celda
+    if (e && e.target.closest('button')) return;
+
+    if (modoBloqueo) {
+      if (diasBloqueados.includes(fechaStr)) {
+        setDiasBloqueados(diasBloqueados.filter(d => d !== fechaStr));
+      } else {
+        setDiasBloqueados([...diasBloqueados, fechaStr]);
+      }
     } else {
-      setDiasBloqueados([...diasBloqueados, fechaStr]);
+      // Si no es modo bloqueo y el día NO está bloqueado, navegar a Citas.
+      if (!diasBloqueados.includes(fechaStr)) {
+        navigate('/citas', { state: { fechaPreseleccionada: fechaStr } });
+      }
     }
   };
 
@@ -137,9 +148,13 @@ export default function Calendario() {
         
       </div>
 
-      {modoBloqueo && (
+      {modoBloqueo ? (
         <div className="bg-danger/10 text-danger p-3 rounded-xl mb-6 font-medium text-center text-sm border border-danger/20">
           Modo Edición: Toca cualquier día para marcarlo como No Disponible.
+        </div>
+      ) : (
+        <div className="bg-primary/10 text-primary p-3 rounded-xl mb-6 font-medium text-center text-sm border border-primary/20 flex items-center justify-center gap-2">
+          <Plus size={16} /> Toca cualquier día vacío para agendar una cita nueva.
         </div>
       )}
 
@@ -159,11 +174,11 @@ export default function Calendario() {
                 return (
                   <div 
                     key={diaIndex} 
-                    onClick={() => dia && handleDiaClick(dia.fechaStr)}
+                    onClick={(e) => dia && handleDiaClick(dia.fechaStr, e)}
                     className={`bg-surface rounded-2xl border-2 transition-all min-h-[120px] md:min-h-[140px] flex flex-col relative overflow-hidden ${
                       !dia ? 'opacity-0 pointer-events-none' : ''
-                    } ${modoBloqueo && dia ? 'cursor-pointer hover:border-danger/50' : ''} ${
-                      isBlocked ? 'border-danger bg-danger/5' : 'border-transparent'
+                    } ${dia ? 'cursor-pointer hover:border-primary/50' : ''} ${
+                      isBlocked ? 'border-danger bg-danger/5 hover:border-danger/50' : 'border-transparent'
                     }`}
                   >
                     {dia && (
@@ -185,7 +200,7 @@ export default function Calendario() {
                               <button
                                 key={i}
                                 onClick={(e) => handleCitaClick(e, cita.id)}
-                                className="w-full bg-primary/10 hover:bg-primary hover:text-white text-primary text-left text-[10px] md:text-xs font-bold px-2 py-1.5 rounded-lg transition-colors truncate shadow-sm flex flex-col"
+                                className="w-full bg-primary/10 hover:bg-primary hover:text-white text-primary text-left text-[10px] md:text-xs font-bold px-2 py-1.5 rounded-lg transition-colors truncate shadow-sm flex flex-col relative z-10"
                               >
                                 <span>{cita.hora.substring(0, 5)} hrs</span>
                                 <span className="font-medium truncate opacity-90">{cita.paciente}</span>
