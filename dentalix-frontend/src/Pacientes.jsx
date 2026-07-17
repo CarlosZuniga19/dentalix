@@ -138,6 +138,37 @@ export default function Pacientes() {
     fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => setTodasLasCitas(data || []));
   }, [vista]);
 
+  // ============================================================================
+  // VIGILANTE DE ENRUTAMIENTO (Atrapa notificaciones de Recall de la pantalla principal)
+  // ============================================================================
+  useEffect(() => {
+    if (location.state?.pacientePreseleccionadoParaAbrir) {
+      const idRecall = location.state.pacientePreseleccionadoParaAbrir.id_paciente;
+      
+      // Es preferible buscar el paciente en la BD real para no machacar sus datos
+      fetch(`${API_URL}?accion=pacientes`)
+        .then(res => res.json())
+        .then(data => {
+          const pacientes = data || [];
+          const pacienteCompleto = pacientes.find(p => Number(p.id) === Number(idRecall));
+          
+          if (pacienteCompleto) {
+            abrirEdicionPaciente(pacienteCompleto);
+          } else {
+            // Fallback de seguridad
+            abrirEdicionPaciente({
+              id: idRecall,
+              nombre: location.state.pacientePreseleccionadoParaAbrir.nombre,
+              telefono: location.state.pacientePreseleccionadoParaAbrir.telefono
+            });
+          }
+          navigate(location.pathname, { replace: true, state: {} });
+        })
+        .catch(err => console.error("Error al cargar paciente de recall:", err));
+    }
+  }, [location.state, navigate]);
+  // ============================================================================
+
   const cargarImagenes = (idPaciente) => {
     fetch(`${API_URL}?accion=imagenes&id_paciente=${idPaciente}`).then(res => res.json()).then(data => setImagenes(data || []));
   };
