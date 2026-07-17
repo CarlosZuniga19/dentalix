@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Bell, Save, Check, Clock, User, AlertCircle, MessageCircle } from 'lucide-react';
+import { Bell, Save, Check, Clock, User, AlertCircle, MessageCircle, Sparkles, Stethoscope, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function Recordatorios() {
   const [citasHoy, setCitasHoy] = useState([]);
+  const [recalls, setRecalls] = useState([]); // Estado para las notificaciones de limpieza/revisión
   const [cargando, setCargando] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
   const [mensajeExito, setMensajeExito] = useState(null);
-  const [editandoNotas, setEditandoNotas] = useState({}); // Controla qué cajas de texto están abiertas
+  const [editandoNotas, setEditandoNotas] = useState({}); 
 
+  const navigate = useNavigate();
   const API_URL = 'https://dentalix.lat/api.php';
 
-  // Función para obtener la fecha local exacta (Evita desfases de zona horaria)
   const getFechaHoyLocal = () => {
     const curr = new Date();
     const yyyy = curr.getFullYear();
@@ -25,6 +27,8 @@ export default function Recordatorios() {
 
   useEffect(() => {
     const hoy = getFechaHoyLocal();
+    
+    // 1. Cargar las citas de la agenda de hoy
     fetch(`${API_URL}?accion=recordatorios_hoy&fecha_hoy=${hoy}`)
       .then(res => res.json())
       .then(data => {
@@ -35,6 +39,62 @@ export default function Recordatorios() {
         console.error("Error cargando recordatorios:", err);
         setCargando(false);
       });
+
+    // 2. Cargar TODAS las citas para calcular el Recall (Limpiezas y Revisiones)
+    fetch(`${API_URL}?accion=citas_lista`)
+      .then(res => res.json())
+      .then(data => {
+        const citas = data || [];
+        const now = new Date(hoy + 'T00:00:00');
+        const pacientesMap = {};
+
+        // Agrupar y detectar la última cita de cada paciente
+        citas.forEach(c => {
+          if (!pacientesMap[c.id_paciente]) {
+            pacientesMap[c.id_paciente] = {
+              id_paciente: c.id_paciente,
+              nombre: c.paciente,
+              telefono: c.telefono,
+              ultimaCita: null,
+              tieneCitaFutura: false
+            };
+          }
+          const p = pacientesMap[c.id_paciente];
+          const fechaCita = new Date(c.fecha + 'T00:00:00');
+
+          // Si el paciente tiene una cita hoy o en el futuro (y no está cancelada), no lo molestamos
+          if (fechaCita >= now && (!c.estado || !c.estado.includes('cancelado'))) {
+            p.tieneCitaFutura = true;
+          }
+
+          // Registrar la cita pasada más reciente
+          if (fechaCita < now && (!c.estado || !c.estado.includes('cancelado'))) {
+            if (!p.ultimaCita || fechaCita > p.ultimaCita) {
+              p.ultimaCita = fechaCita;
+            }
+          }
+        });
+
+        const recallList = [];
+        Object.values(pacientesMap).forEach(p => {
+          if (p.tieneCitaFutura || !p.ultimaCita) return; // Si ya tiene cita programada, ignorar
+
+          const diffTime = now - p.ultimaCita;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const diffMonths = diffDays / 30.44; // Promedio de días en un mes
+
+          if (diffMonths >= 12) {
+            recallList.push({ ...p, tipo: 'revisión', meses: Math.floor(diffMonths) });
+          } else if (diffMonths >= 6) {
+            recallList.push({ ...p, tipo: 'limpieza', meses: Math.floor(diffMonths) });
+          }
+        });
+
+        // Ordenar para mostrar primero los que llevan más tiempo sin venir
+        recallList.sort((a, b) => b.meses - a.meses);
+        setRecalls(recallList);
+      })
+      .catch(err => console.error("Error calculando notificaciones:", err));
   }, []);
 
   const handleCambioTexto = (id_cita, texto) => {
@@ -47,15 +107,13 @@ export default function Recordatorios() {
     setEditandoNotas(prev => ({ ...prev, [id_cita]: !prev[id_cita] }));
   };
 
-  // Formateador simple para el enlace del teléfono en la cabecera
   const getWaLink = (telefono) => {
     if (!telefono) return '#';
-    let num = telefono.replace(/\D/g, ''); // Limpia guiones y espacios
+    let num = telefono.replace(/\D/g, ''); 
     if (num.length === 10) num = '52' + num;
     return `https://wa.me/${num}`;
   };
 
-  // Lógica inteligente para el botón de Enviar Recordatorio
   const abrirWhatsAppRecordatorio = (cita) => {
     if (!cita.telefono) {
       alert("El paciente no tiene un número de teléfono registrado.");
@@ -101,7 +159,6 @@ export default function Recordatorios() {
       setGuardandoId(null);
       if (data.success) {
         setMensajeExito(id_cita);
-        // Cerramos la caja de edición automáticamente al guardar exitosamente
         setEditandoNotas(prev => ({ ...prev, [id_cita]: false }));
         setTimeout(() => setMensajeExito(null), 3000); 
       }
@@ -112,9 +169,48 @@ export default function Recordatorios() {
     });
   };
 
+  // Función para navegar al expediente desde la notificación
+  const irAPaciente = (pacienteRecall) => {
+    // Mandamos la instrucción al enrutador de que preseleccione a este paciente
+    navigate('/pacientes', { state: { pacientePreseleccionadoParaAbrir: pacienteRecall } });
+  };
+
   return (
     <div className="max-w-4xl mx-auto pb-24">
+
+      {/* ================= CARRUSEL DE NOTIFICACIONES (RECALL) ================= */}
+      {recalls.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-black text-primary uppercase mb-3 flex items-center gap-2">
+            <Sparkles size={16} /> Notificaciones Inteligentes
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-4" style={{ scrollbarWidth: 'none' }}>
+            {recalls.map((recall, i) => (
+              <div 
+                key={i} 
+                onClick={() => irAPaciente(recall)}
+                className="bg-white min-w-[260px] max-w-[280px] p-4 rounded-3xl border-2 border-primary/10 shadow-sm hover:border-primary/40 cursor-pointer flex-shrink-0 transition-all group"
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-xl shrink-0 ${recall.tipo === 'limpieza' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                    {recall.tipo === 'limpieza' ? <Sparkles size={20}/> : <Stethoscope size={20}/>}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-dark font-medium leading-tight mb-2">
+                      El paciente <strong className="font-black">{recall.nombre}</strong> ya necesita una <strong className={recall.tipo === 'limpieza' ? 'text-blue-600' : 'text-purple-600'}>{recall.tipo}</strong>.
+                    </p>
+                    <span className="text-[10px] text-muted uppercase font-bold flex items-center gap-1 group-hover:text-primary transition-colors">
+                      Abrir expediente <ChevronRight size={12} />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
+      {/* ================= AGENDA DEL DÍA ================= */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-dark flex items-center gap-2">
@@ -134,12 +230,13 @@ export default function Recordatorios() {
           </div>
         ) : citasHoy.length > 0 ? (
           citasHoy.map((cita) => (
-            <div key={cita.id_cita} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col transition-all hover:shadow-md">
+            <div 
+              key={cita.id_cita} 
+              onClick={() => navigate('/citas', { state: { citaIdParaEditar: cita.id_cita } })}
+              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col transition-all hover:shadow-md hover:border-primary/30 cursor-pointer"
+            >
               
-              {/* Información principal de la cita (ligeramente más compacta) */}
               <div className="p-4 md:p-5 flex justify-between items-center gap-4">
-                
-                {/* Lado izquierdo: Hora y Paciente */}
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2 text-primary font-black text-xl mb-2">
                     <Clock size={20} />
@@ -156,6 +253,7 @@ export default function Recordatorios() {
                           href={getWaLink(cita.telefono)} 
                           target="_blank" 
                           rel="noreferrer" 
+                          onClick={(e) => e.stopPropagation()} 
                           className="text-sm text-[#25D366] font-bold hover:underline mt-1 inline-flex items-center gap-1.5"
                         >
                           <MessageCircle size={15} /> {cita.telefono}
@@ -167,13 +265,12 @@ export default function Recordatorios() {
                   </div>
                 </div>
 
-                {/* Lado derecho: Cápsulas de Estado y Nota en Columna */}
                 <div className="flex flex-col items-end justify-center gap-2 shrink-0">
                   <span className="bg-surface border border-gray-200 text-xs font-bold px-4 py-2 rounded-full uppercase text-muted shadow-sm text-center w-full min-w-[120px]">
                     {cita.estado}
                   </span>
                   <button 
-                    onClick={() => toggleEdicionNota(cita.id_cita)}
+                    onClick={(e) => { e.stopPropagation(); toggleEdicionNota(cita.id_cita); }}
                     className="bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-600 text-xs font-bold px-4 py-2 rounded-full shadow-sm transition-colors flex items-center justify-center gap-1.5 w-full min-w-[120px]"
                   >
                     <Bell size={14} />
@@ -182,7 +279,6 @@ export default function Recordatorios() {
                 </div>
               </div>
 
-              {/* Área de Nota Guardada (Modo Lectura) - Diseño naranja */}
               {cita.recordatorio && !editandoNotas[cita.id_cita] && (
                 <div className="bg-[#FFF8F3] border-t border-orange-100 p-4 md:px-5 flex items-start gap-3">
                   <Bell size={20} className="text-orange-500 shrink-0 mt-0.5" />
@@ -192,9 +288,11 @@ export default function Recordatorios() {
                 </div>
               )}
 
-              {/* Área de Edición de Nota (Caja de Texto) */}
               {editandoNotas[cita.id_cita] && (
-                <div className="p-4 md:p-5 bg-surface/50 border-t border-gray-100 flex flex-col">
+                <div 
+                  className="p-4 md:p-5 bg-surface/50 border-t border-gray-100 flex flex-col cursor-default"
+                  onClick={(e) => e.stopPropagation()} 
+                >
                   <label className="text-sm font-bold text-dark mb-2 flex items-center gap-2">
                     <AlertCircle size={16} className="text-muted" /> Escribe la nota o recordatorio:
                   </label>
@@ -207,13 +305,13 @@ export default function Recordatorios() {
                   
                   <div className="mt-3 flex justify-end gap-2">
                     <button 
-                      onClick={() => toggleEdicionNota(cita.id_cita)}
+                      onClick={(e) => { e.stopPropagation(); toggleEdicionNota(cita.id_cita); }}
                       className="px-5 py-2 rounded-full font-bold text-muted hover:bg-gray-200 transition-colors text-sm"
                     >
                       Cancelar
                     </button>
                     <button 
-                      onClick={() => guardarRecordatorio(cita.id_cita, cita.recordatorio)}
+                      onClick={(e) => { e.stopPropagation(); guardarRecordatorio(cita.id_cita, cita.recordatorio); }}
                       disabled={guardandoId === cita.id_cita}
                       className={`px-5 py-2 rounded-full font-bold shadow-sm flex items-center gap-2 transition-all text-sm ${
                         mensajeExito === cita.id_cita 
@@ -233,10 +331,9 @@ export default function Recordatorios() {
                 </div>
               )}
 
-              {/* Botón Inferior: Enviar Recordatorio WhatsApp (Reducido y alineado a la derecha) */}
               <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex justify-end">
                 <button
-                  onClick={() => abrirWhatsAppRecordatorio(cita)}
+                  onClick={(e) => { e.stopPropagation(); abrirWhatsAppRecordatorio(cita); }}
                   className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-5 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
                 >
                   <MessageCircle size={14} />
