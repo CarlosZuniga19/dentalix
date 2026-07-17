@@ -22,10 +22,24 @@ export default function Citas() {
   const API_URL = 'https://dentalix.lat/api.php';
   const { setBackAction } = useAppContext();
 
+  // ============================================================================
+  // LÓGICA DE ASIGNACIÓN AUTOMÁTICA DE DOCTOR POR USUARIO
+  // ============================================================================
+  const currentUserId = localStorage.getItem('dentalix_usuario_id') || '1';
+  let doctorPorDefecto = 'Dra. Hasdra Guerrero';
+  
+  if (currentUserId === '2') {
+    doctorPorDefecto = 'Dra. Valeria Ramírez';
+  } else if (currentUserId !== '1') {
+    // Si es un nuevo usuario (> 2), intenta leer su nombre, sino usa un texto genérico
+    doctorPorDefecto = localStorage.getItem('dentalix_user_name') || 'Doctor Titular';
+  }
+  // ============================================================================
+
   const [idCitaEditando, setIdCitaEditando] = useState(null);
   const [fecha, setFecha] = useState('');
   const [hora, setHora] = useState('');
-  const [profesional, setProfesional] = useState('Dra. Hasdra Guerrero');
+  const [profesional, setProfesional] = useState(doctorPorDefecto); // Inicializa con el doctor detectado
   const [estadoCita, setEstadoCita] = useState(['programado']);
   const [datosPaciente, setDatosPaciente] = useState({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
   const [procedimientosSeleccionados, setProcedimientosSeleccionados] = useState([]);
@@ -86,7 +100,7 @@ export default function Citas() {
     const citaObj = new Date(fechaCita + 'T00:00:00');
     const diffDays = Math.ceil((citaObj - hoyObj) / (1000 * 60 * 60 * 24));
 
-    let textoWa = `Hola ${paciente}, le escribimos para recordarle su cita `;
+    let textoWa = `Hola ${paciente}, para recordarte tu cita `;
     
     if (diffDays <= 0) {
       textoWa += `el día de hoy a las ${horaCita.substring(0,5)} hrs.`;
@@ -98,7 +112,7 @@ export default function Citas() {
       textoWa += `el ${fechaFormateada} a las ${horaCita.substring(0,5)} hrs.`;
     }
     
-    textoWa += ` ¡Le esperamos!`;
+    textoWa += ` ¡Te esperamos!`;
     
     const url = `https://wa.me/${num}?text=${encodeURIComponent(textoWa)}`;
     window.open(url, '_blank');
@@ -131,6 +145,7 @@ export default function Citas() {
     setIdCitaEditando(null);
     setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
     setFecha(''); setHora(''); setEstadoCita(['programado']);
+    setProfesional(doctorPorDefecto); // Resetea el desplegable al doctor del usuario
     setProcedimientosSeleccionados([]); setAbono('');
     setBusquedaPaciente('');
   };
@@ -530,7 +545,20 @@ export default function Citas() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" step="900" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label><input type="text" value={profesional} onChange={e => setProfesional(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          
+          {/* NUEVO DROPDOWN DE PROFESIONAL */}
+          <div>
+            <label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label>
+            <select 
+              value={profesional} 
+              onChange={e => setProfesional(e.target.value)} 
+              className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark font-medium outline-none focus:border-primary appearance-none"
+            >
+              <option value={doctorPorDefecto}>{doctorPorDefecto}</option>
+              <option value="Doctor invitado">Doctor invitado</option>
+            </select>
+          </div>
+          
         </section>
 
         <section className="p-4 bg-surface rounded-2xl border border-primary/20">
