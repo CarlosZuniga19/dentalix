@@ -12,7 +12,7 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 
 // =========================================================================
-// C ONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
+// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
 // =========================================================================
 export const AppContext = createContext();
 export const useAppContext = () => useContext(AppContext);
@@ -73,13 +73,6 @@ function Layout({ children, nombreClinica, backAction }) {
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
-      {/* CABECERA MÓVIL (Fijada explícitamente en blanco para día y fondo oscuro para noche, bloqueando el gris de iOS) */}
-      <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-white dark:bg-background border-b border-gray-200 dark:border-gray-800 flex items-center justify-center z-40 transition-colors">
-        <Link to="/" className="text-primary font-bold text-xl hover:opacity-80 transition-opacity">
-          {nombreClinica}
-        </Link>
-      </div>
-
       {/* MENÚ LATERAL ESCRITORIO (Oculto en móvil) */}
       <nav className="hidden md:flex fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 flex-col transition-transform duration-300 ease-in-out">
         <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity">
@@ -95,8 +88,8 @@ function Layout({ children, nombreClinica, backAction }) {
         <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
-      {/* ÁREA DE CONTENIDO */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto mt-16 md:mt-0 mb-28 md:mb-0 bg-surface relative">
+      {/* ÁREA DE CONTENIDO (Márgenes superiores eliminados para vista inmersiva) */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto mb-28 md:mb-0 bg-surface relative">
         {children}
       </main>
 
