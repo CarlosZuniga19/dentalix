@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, X, Check, FileDown, MessageCircle, Search, Bell, Edit2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -55,6 +55,12 @@ export default function Citas() {
   const [procTemp, setProcTemp] = useState(null);
   const [dientesSeleccionados, setDientesSeleccionados] = useState([]); // Ahora es un arreglo
   const [editandoProcIndex, setEditandoProcIndex] = useState(null); // Rastrea qué índice de la tabla estamos editando
+
+  // Estados para Firma Digital en Presupuesto
+  const canvasRef = useRef(null);
+  const [dibujando, setDibujando] = useState(false);
+  const [canvasTieneTrazos, setCanvasTieneTrazos] = useState(false);
+  const [firmaBase64, setFirmaBase64] = useState(null);
 
   // Construimos el historial para que el odontograma pinte TODOS los dientes seleccionados a la vez
   const historialOdontograma = {};
@@ -123,6 +129,53 @@ export default function Citas() {
   };
   // ----------------------------------------
 
+  // --- LÓGICA DE EVENTOS PARA EL CANVAS DE FIRMA ---
+  const iniciarDibujo = (e) => {
+    e.target.setPointerCapture(e.pointerId);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.moveTo(x, y);
+    setDibujando(true);
+    setCanvasTieneTrazos(true);
+  };
+
+  const dibujar = (e) => {
+    if (!dibujando) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const detenerDibujo = (e) => {
+    if (!dibujando) return;
+    e.target.releasePointerCapture(e.pointerId);
+    setDibujando(false);
+  };
+
+  const limpiarFirma = () => {
+    setFirmaBase64(null);
+    setCanvasTieneTrazos(false);
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  };
+
   // ============================================================================
   // FUNCIONES DE CONTROL DE ESTADO
   // ============================================================================
@@ -155,6 +208,7 @@ export default function Citas() {
     setProfesional(doctorPorDefecto); 
     setProcedimientosSeleccionados([]); setAbono('');
     setBusquedaPaciente('');
+    limpiarFirma();
   };
 
   const seleccionarPacienteExistente = (p) => {
@@ -165,6 +219,7 @@ export default function Citas() {
       ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
     });
     setBusquedaPaciente('');
+    limpiarFirma();
   };
 
   const abrirEdicionCita = (c) => {
@@ -419,8 +474,34 @@ export default function Citas() {
     doc.setFontSize(9);
     doc.text("Gracias por elegir nuestra clínica.", 14, finalY + 10);
     
-    doc.line(130, finalY + 45, 185, finalY + 45);
-    doc.text("Firma del Paciente", 143, finalY + 50);
+    // --- FIRMA DIGITAL EN EL PRESUPUESTO PDF ---
+    let yFirma = finalY + 30;
+    
+    let finalSignatureToPrint = firmaBase64;
+    if (canvasRef.current && canvasTieneTrazos) {
+      finalSignatureToPrint = canvasRef.current.toDataURL('image/png');
+    }
+
+    if (yFirma + 50 > 280) {
+      doc.addPage();
+      yFirma = 20;
+    }
+
+    if (finalSignatureToPrint) {
+      // Ajustamos la posición para que quede centrada bajo los totales o en medio
+      doc.addImage(finalSignatureToPrint, 'PNG', 125, yFirma, 60, 30);
+      yFirma += 30;
+    } else {
+      yFirma += 25; // Espacio por si lo quieren firmar a mano con pluma
+    }
+
+    doc.setDrawColor(0, 0, 0);
+    doc.line(130, yFirma, 185, yFirma);
+    doc.text("Firma del Paciente", 143, yFirma + 5);
+    
+    if (datosPaciente.nombre) {
+      doc.text(datosPaciente.nombre, 157, yFirma + 10, { align: "center" });
+    }
 
     doc.save(`Presupuesto_${datosPaciente.nombre || 'Paciente'}.pdf`);
   };
@@ -554,7 +635,7 @@ export default function Citas() {
         {pacienteSeleccionado && (
           <div className="mt-3 bg-primary/10 p-3 rounded-xl flex justify-between items-center border border-primary/20">
             <span className="text-xs font-bold text-primary">Paciente enlazado: <strong className="text-sm">{pacienteSeleccionado.nombre}</strong></span>
-            <button onClick={() => { setPacienteSeleccionado(null); setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' }); }} className="text-danger hover:underline text-xs font-bold">Desenlazar</button>
+            <button onClick={() => { setPacienteSeleccionado(null); setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' }); limpiarFirma(); }} className="text-danger hover:underline text-xs font-bold">Desenlazar</button>
           </div>
         )}
       </div>
@@ -707,6 +788,45 @@ export default function Citas() {
             <button onClick={generarPresupuestoPDF} className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors">
               <FileDown size={16}/> Generar Presupuesto PDF
             </button>
+
+            {/* --- SECCIÓN DE FIRMA DIGITAL PARA PRESUPUESTO --- */}
+            <div className="mt-4 pt-4 border-t border-blue-200">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs font-bold text-blue-800">Firma del paciente</span>
+                {(firmaBase64 || canvasTieneTrazos) && (
+                  <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
+                    Borrar Firma
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex flex-col items-center justify-center w-full">
+                {firmaBase64 && !canvasTieneTrazos ? (
+                  <div className="relative border-2 border-blue-200 rounded-xl w-full h-24 flex items-center justify-center bg-white shadow-sm overflow-hidden">
+                    <img src={firmaBase64} alt="Firma del paciente" className="max-h-full max-w-full object-contain" />
+                  </div>
+                ) : (
+                  <div className="bg-white border-2 border-dashed border-blue-300 rounded-xl overflow-hidden relative w-full h-24 touch-none shadow-sm">
+                    <canvas
+                      ref={canvasRef}
+                      width={400}
+                      height={96}
+                      className="w-full h-full cursor-crosshair"
+                      onPointerDown={iniciarDibujo}
+                      onPointerMove={dibujar}
+                      onPointerUp={detenerDibujo}
+                      onPointerOut={detenerDibujo}
+                    />
+                    {!canvasTieneTrazos && (
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-blue-800/40 font-medium text-xs px-2 text-center">
+                        Pide al paciente que firme aquí para anexarlo al PDF
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
           </div>
         </section>
 

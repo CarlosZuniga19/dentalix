@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -49,7 +49,7 @@ const capturarDiente = (diente, colorStr) => {
     img.crossOrigin = 'Anonymous';
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const scale = 3; // Alta resolución para el PDF
+      const scale = 3; 
       canvas.width = (img.naturalWidth || 50) * scale;
       canvas.height = (img.naturalHeight || 100) * scale;
       const ctx = canvas.getContext('2d');
@@ -57,21 +57,16 @@ const capturarDiente = (diente, colorStr) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       if (colorStr && colorStr !== 'transparent' && colorStr !== '#FFFFFF') {
-        // Rellenar de color sólido
         ctx.fillStyle = colorStr;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        // Recortar con la forma del diente original
         ctx.globalCompositeOperation = 'destination-in';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        // Dibujar las líneas del diente encima
         ctx.globalCompositeOperation = 'multiply';
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       } else {
-        // Diente vacío
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
       
-      // NUEVO: Calcular la proporción natural para evitar el aplastamiento
       const ratio = img.naturalHeight > 0 ? (img.naturalWidth / img.naturalHeight) : 0.5;
 
       resolve({
@@ -114,6 +109,12 @@ export default function Pacientes() {
   const [archivosLocales, setArchivosLocales] = useState([]);
   const [imagenEnGrande, setImagenEnGrande] = useState(null);
 
+  // Estados para Firma Digital
+  const canvasRef = useRef(null);
+  const [dibujando, setDibujando] = useState(false);
+  const [canvasTieneTrazos, setCanvasTieneTrazos] = useState(false);
+  const [firmaBase64, setFirmaBase64] = useState(null);
+
   // Estado para la carga visual del PDF
   const [generandoPDF, setGenerandoPDF] = useState(false);
 
@@ -121,7 +122,6 @@ export default function Pacientes() {
     ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {})
   );
 
-  // CONTROL DEL BOTÓN ATRÁS GLOBAL
   useEffect(() => {
     if (vista !== 'lista') {
       setBackAction(() => () => setVista('lista'));
@@ -131,31 +131,23 @@ export default function Pacientes() {
     return () => setBackAction(null);
   }, [vista, setBackAction]);
 
-  // ================= CARGA PRINCIPAL DE DATOS =================
   useEffect(() => {
     fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
     fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setListaPacientes(data || []));
     fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => setTodasLasCitas(data || []));
   }, [vista]);
 
-  // ============================================================================
-  // VIGILANTE DE ENRUTAMIENTO (Atrapa notificaciones de Recall de la pantalla principal)
-  // ============================================================================
   useEffect(() => {
     if (location.state?.pacientePreseleccionadoParaAbrir) {
       const idRecall = location.state.pacientePreseleccionadoParaAbrir.id_paciente;
-      
-      // Es preferible buscar el paciente en la BD real para no machacar sus datos
       fetch(`${API_URL}?accion=pacientes`)
         .then(res => res.json())
         .then(data => {
           const pacientes = data || [];
           const pacienteCompleto = pacientes.find(p => Number(p.id) === Number(idRecall));
-          
           if (pacienteCompleto) {
             abrirEdicionPaciente(pacienteCompleto);
           } else {
-            // Fallback de seguridad
             abrirEdicionPaciente({
               id: idRecall,
               nombre: location.state.pacientePreseleccionadoParaAbrir.nombre,
@@ -167,7 +159,6 @@ export default function Pacientes() {
         .catch(err => console.error("Error al cargar paciente de recall:", err));
     }
   }, [location.state, navigate]);
-  // ============================================================================
 
   const cargarImagenes = (idPaciente) => {
     fetch(`${API_URL}?accion=imagenes&id_paciente=${idPaciente}`).then(res => res.json()).then(data => setImagenes(data || []));
@@ -179,6 +170,8 @@ export default function Pacientes() {
     setArchivosLocales([]);
     setHistorialOdontograma({});
     setTratamientosGuardados([]);
+    setFirmaBase64(null);
+    setCanvasTieneTrazos(false);
     setAnamnesis(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
     setVista('nuevo');
   };
@@ -194,6 +187,12 @@ export default function Pacientes() {
       .then(res => res.json())
       .then(data => {
         if (data.tratamientos) setTratamientosGuardados(data.tratamientos);
+        
+        // Si el backend tuviera la firma guardada, la cargamos
+        if (data.firma) setFirmaBase64(data.firma);
+        else setFirmaBase64(null);
+        setCanvasTieneTrazos(false);
+
         if (data.odontograma) {
           const odontoObj = {};
           data.odontograma.forEach(item => { odontoObj[item.numero_diente] = { nombre: item.nombre, color: item.color }; });
@@ -223,16 +222,12 @@ export default function Pacientes() {
 
   const handleImagenUpload = async (e) => {
     const files = Array.from(e.target.files);
-    
-    // Si el paciente NO existe aún, guardamos las fotos localmente en previsualización
     if (!datosPaciente.id) {
       setArchivosLocales(prev => [...prev, ...files]);
       const previews = files.map(file => ({ ruta_imagen: URL.createObjectURL(file), es_local: true }));
       setImagenes(prev => [...prev, ...previews]);
       return;
     }
-
-    // Si el paciente YA existe, lógica original de subida directa
     for (const file of files) {
       const formData = new FormData();
       formData.append('imagen', file);
@@ -260,11 +255,64 @@ export default function Pacientes() {
     setTratamientoTemp({ fecha: '', hora: '', procedimientos: [], dientes: [] });
   };
 
+  // --- LÓGICA DE EVENTOS PARA EL CANVAS DE FIRMA ---
+  const iniciarDibujo = (e) => {
+    e.target.setPointerCapture(e.pointerId);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.moveTo(x, y);
+    setDibujando(true);
+    setCanvasTieneTrazos(true);
+  };
+
+  const dibujar = (e) => {
+    if (!dibujando) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const detenerDibujo = (e) => {
+    if (!dibujando) return;
+    e.target.releasePointerCapture(e.pointerId);
+    setDibujando(false);
+  };
+
+  const limpiarFirma = () => {
+    setFirmaBase64(null);
+    setCanvasTieneTrazos(false);
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  };
+
   const guardarExpedienteYRegresar = async () => {
     if (!datosPaciente.nombre) { alert("El nombre del paciente es obligatorio."); return; }
 
+    // Capturar firma nativa si se dibujó
+    let finalSignature = firmaBase64;
+    if (canvasRef.current && canvasTieneTrazos) {
+      finalSignature = canvasRef.current.toDataURL('image/png');
+    }
+
     const payload = {
-      paciente: datosPaciente,
+      paciente: { ...datosPaciente, firma: finalSignature },
       cita: { fecha: '', hora: '', estado: ['programado'] }, 
       procedimientos: [], 
       pagos: [], 
@@ -294,7 +342,6 @@ export default function Pacientes() {
       if (data.success) {
         const idPacienteReal = datosPaciente.id || data.id_paciente || data.id;
 
-        // Subimos las imágenes que estaban en cola esperando el ID del paciente nuevo
         if (archivosLocales.length > 0 && idPacienteReal) {
           for (const file of archivosLocales) {
             const formData = new FormData();
@@ -318,11 +365,9 @@ export default function Pacientes() {
     navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
-  // --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO (RENDERIZADO NATIVO PROPORCIONAL) ---
+  // --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO ---
   const generarExpedientePDF = async () => {
     setGenerandoPDF(true);
-    
-    // Pequeña pausa para permitir que React renderice el botón de "Generando..." antes de congelar el navegador
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
@@ -389,7 +434,6 @@ export default function Pacientes() {
         yPos += 4;
       }
 
-      // Control de salto de página antes del odontograma
       if (yPos + 80 > 270) {
         doc.addPage();
         yPos = 20;
@@ -402,14 +446,12 @@ export default function Pacientes() {
       doc.text("MAPEO DENTAL (ODONTOGRAMA)", 14, yPos);
       yPos += 10;
 
-      // Medidas para mantener proporción anatómica y centrado en la hoja A4
-      const anchoCelda = 8; // mm (espacio máximo a lo ancho por diente)
-      const maxAltoDiente = 14; // mm (límite anatómico de altura)
-      const separacion = 2; // mm
-      const anchoTotalFila = (16 * anchoCelda) + (15 * separacion); // 158mm
-      const xInicial = (210 - anchoTotalFila) / 2; // 26mm (Centrado perfecto)
+      const anchoCelda = 8; 
+      const maxAltoDiente = 14; 
+      const separacion = 2; 
+      const anchoTotalFila = (16 * anchoCelda) + (15 * separacion); 
+      const xInicial = (210 - anchoTotalFila) / 2; 
 
-      // FILA 1: MAXILAR (Dientes Superiores)
       doc.setFontSize(8);
       for (let i = 0; i < 16; i++) {
         const diente = DIENTES_ADULTOS[i];
@@ -419,7 +461,6 @@ export default function Pacientes() {
         const captura = await capturarDiente(diente, color);
         const xCelda = xInicial + (i * (anchoCelda + separacion));
         
-        // Imprimir el número arriba
         if (color !== 'transparent') {
           doc.setTextColor(...hexToRgb(color));
           doc.setFont("helvetica", "bold");
@@ -429,18 +470,15 @@ export default function Pacientes() {
         }
         doc.text(diente.toString(), xCelda + (anchoCelda / 2) - 1.5, yPos);
 
-        // Imprimir el gráfico anatómico del diente
         if (captura && captura.imgData) {
           let toothW = anchoCelda;
           let toothH = toothW / captura.ratio;
           
-          // Si el diente es muy esbelto, limitamos la altura para que no se estire
           if (toothH > maxAltoDiente) {
             toothH = maxAltoDiente;
             toothW = toothH * captura.ratio;
           }
           
-          // Centrar imagen en su celda y alinear abajo
           const offsetX = xCelda + (anchoCelda - toothW) / 2;
           const offsetY = yPos + 3 + (maxAltoDiente - toothH); 
 
@@ -450,7 +488,6 @@ export default function Pacientes() {
 
       yPos += maxAltoDiente + 10;
 
-      // FILA 2: MANDÍBULA (Dientes Inferiores)
       for (let i = 16; i < 32; i++) {
         const diente = DIENTES_ADULTOS[i];
         const condicion = historialOdontograma[diente];
@@ -459,7 +496,6 @@ export default function Pacientes() {
         const captura = await capturarDiente(diente, color);
         const xCelda = xInicial + ((i - 16) * (anchoCelda + separacion));
         
-        // Imprimir el gráfico anatómico del diente
         if (captura && captura.imgData) {
           let toothW = anchoCelda;
           let toothH = toothW / captura.ratio;
@@ -469,14 +505,12 @@ export default function Pacientes() {
             toothW = toothH * captura.ratio;
           }
           
-          // Centrar imagen en su celda y alinear arriba
           const offsetX = xCelda + (anchoCelda - toothW) / 2;
           const offsetY = yPos; 
 
           doc.addImage(captura.imgData, 'PNG', offsetX, offsetY, toothW, toothH);
         }
 
-        // Imprimir el número abajo
         if (color !== 'transparent') {
           doc.setTextColor(...hexToRgb(color));
           doc.setFont("helvetica", "bold");
@@ -489,7 +523,6 @@ export default function Pacientes() {
 
       yPos += maxAltoDiente + 14;
 
-      // --- LISTADO DE PROCEDIMIENTOS CON BOLITA DE COLOR ---
       const dientesConCondicion = Object.entries(historialOdontograma);
       if (dientesConCondicion.length > 0) {
         doc.setTextColor(...primaryColor);
@@ -504,11 +537,9 @@ export default function Pacientes() {
         dientesConCondicion.forEach(([diente, data]) => {
           if (yPos > 275) { doc.addPage(); yPos = 20; }
           
-          // Dibujar bolita de color
           doc.setFillColor(...hexToRgb(data.color));
           doc.circle(16, yPos - 1.2, 2, 'F');
           
-          // Dibujar texto (Diente XX: Procedimiento)
           doc.setTextColor(0, 0, 0);
           doc.text(`Diente ${diente}: ${data.nombre}`, 21, yPos);
           yPos += 6;
@@ -540,6 +571,39 @@ export default function Pacientes() {
           headStyles: { fillColor: primaryColor, textColor: 255 },
           styles: { fontSize: 9 }
         });
+        
+        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPos + 30;
+      } else {
+        yPos += 15;
+      }
+
+      // --- FIRMA DIGITAL EN EL PDF ---
+      let finalSignatureToPrint = firmaBase64;
+      if (canvasRef.current && canvasTieneTrazos) {
+        finalSignatureToPrint = canvasRef.current.toDataURL('image/png');
+      }
+
+      if (yPos + 50 > 280) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      if (finalSignatureToPrint) {
+        doc.addImage(finalSignatureToPrint, 'PNG', 75, yPos, 60, 30);
+        yPos += 30;
+      } else {
+        yPos += 25; // Espacio por si lo quieren firmar a mano con pluma
+      }
+
+      doc.setDrawColor(0, 0, 0);
+      doc.line(75, yPos, 135, yPos);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Firma del paciente", 105, yPos + 5, { align: "center" });
+      
+      if (datosPaciente.nombre) {
+        doc.text(datosPaciente.nombre, 105, yPos + 10, { align: "center" });
       }
 
       doc.save(`Expediente_${datosPaciente.nombre.replace(/\s+/g, '_')}.pdf`);
@@ -551,7 +615,6 @@ export default function Pacientes() {
     }
   };
 
-  // --- Lógica Auxiliar para WhatsApp ---
   const getWaLink = (telefono) => {
     if (!telefono) return '#';
     let num = telefono.replace(/\D/g, ''); 
@@ -559,7 +622,6 @@ export default function Pacientes() {
     return `https://wa.me/${num}`;
   };
 
-  // --- Lógica Auxiliar para Dropdowns de Fecha de Nacimiento ---
   const getFnParts = (fecha) => {
     if (!fecha) return ['1998', '01', '01'];
     const parts = fecha.split('-');
@@ -643,7 +705,6 @@ export default function Pacientes() {
         <X size={18} /> Cancelar y regresar a la lista
       </button>
 
-      {/* --- BOTÓN DE CREAR CITA (SOLO VISIBLE SI EL PACIENTE EXISTE) --- */}
       {datosPaciente.id && (
         <div className="bg-[#E8F8F5] border border-[#A2D9CE] rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div>
@@ -683,7 +744,6 @@ export default function Pacientes() {
             <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
             <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
             
-            {/* TRES DROPDOWNS PARA FECHA DE NACIMIENTO */}
             <div className="flex gap-2 w-full" title="Fecha de Nacimiento">
               <select value={fnYear} onChange={e => handleFechaNacimiento('year', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
                 <option value="" disabled>Año</option>
@@ -725,7 +785,6 @@ export default function Pacientes() {
           </div>
         </section>
 
-      {/* AQUI CERRAMOS LA CAJA BLANCA PRINCIPAL PARA DEJAR LIBRE AL ODONTOGRAMA */}
       </div>
 
       {/* ================= SECCIÓN ODONTOGRAMA ================= */}
@@ -735,10 +794,8 @@ export default function Pacientes() {
           <p className="text-xs text-muted">Toca un diente para asignarle un padecimiento.</p>
         </div>
 
-        {/* Contenedor Flex: Proporción anatómica natural, números desamontonados y dientes enormes */}
         <div className="w-full flex flex-col gap-12 sm:gap-20 items-center overflow-x-hidden px-2">
 
-          {/* FILA SUPERIOR (Maxilar) - Alineación inferior (items-end) proporcional */}
           <div className="flex justify-between items-end w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pt-6">
             {DIENTES_ADULTOS.slice(0, 16).map(diente => {
               const condicion = historialOdontograma[diente];
@@ -748,7 +805,6 @@ export default function Pacientes() {
               return (
                 <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="relative flex flex-col items-center justify-end shrink min-w-0 group outline-none p-0 bg-transparent border-none">
                   
-                  {/* Número absoluto arriba: Flota para no romper el ancho ni amontonarse */}
                   <span className="absolute bottom-full mb-1 sm:mb-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
 
                   <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
@@ -780,14 +836,12 @@ export default function Pacientes() {
             })}
           </div>
 
-          {/* FILA INFERIOR (Mandíbula) - Alineación superior (items-start) proporcional */}
           <div className="flex justify-between items-start w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pb-6">
             {DIENTES_ADULTOS.slice(16, 32).map(diente => {
               const condicion = historialOdontograma[diente];
               const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
               const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
               
-              // Separación quirúrgica solo para los dientes estrechos del centro abajo
               const isMiddleBottom = [43, 42, 41, 31, 32, 33].includes(diente);
 
               return (
@@ -818,7 +872,6 @@ export default function Pacientes() {
                     />
                   </div>
 
-                  {/* Número absoluto abajo: Flota para no romper el ancho ni amontonarse */}
                   <span className="absolute top-full mt-1 sm:mt-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
                 
                 </button>
@@ -828,7 +881,6 @@ export default function Pacientes() {
 
         </div>
 
-        {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
         {dienteActivoHistorial && (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
@@ -865,7 +917,6 @@ export default function Pacientes() {
           {imagenes.length > 0 && (
             <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
               {imagenes.map((img, i) => {
-                // Validación para renderizar rutas locales vs del servidor
                 const imageSrc = img.es_local ? img.ruta_imagen : `https://dentalix.lat/${img.ruta_imagen}`;
                 return (
                   <img key={i} src={imageSrc} alt="Archivo Clínico" onClick={() => setImagenEnGrande(imageSrc)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 hover:border-primary shadow-sm shrink-0" />
@@ -888,6 +939,47 @@ export default function Pacientes() {
                 </div>
               )
             })}
+          </div>
+        </section>
+
+        {/* --- SECCIÓN DE FIRMA DIGITAL --- */}
+        <section>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
+            Firmar expediente
+            {(firmaBase64 || canvasTieneTrazos) && (
+              <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
+                Borrar Firma
+              </button>
+            )}
+          </h2>
+          
+          <div className="flex flex-col items-center justify-center">
+            {firmaBase64 && !canvasTieneTrazos ? (
+              <div className="relative border-2 border-gray-200 rounded-2xl w-full max-w-lg h-40 flex items-center justify-center bg-white shadow-sm overflow-hidden">
+                <img src={firmaBase64} alt="Firma del paciente" className="max-h-full max-w-full object-contain" />
+              </div>
+            ) : (
+              <div className="bg-surface border-2 border-dashed border-gray-300 rounded-2xl overflow-hidden relative w-full max-w-lg h-40 touch-none shadow-sm">
+                <canvas
+                  ref={canvasRef}
+                  width={500}
+                  height={160}
+                  className="w-full h-full cursor-crosshair"
+                  onPointerDown={iniciarDibujo}
+                  onPointerMove={dibujar}
+                  onPointerUp={detenerDibujo}
+                  onPointerOut={detenerDibujo}
+                />
+                {!canvasTieneTrazos && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-muted/50 font-medium text-sm">
+                    Pide al paciente que firme aquí
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted mt-3 italic text-center">
+              Al firmar este expediente, el paciente acepta los tratamientos, padecimientos médicos y el historial registrado.
+            </p>
           </div>
         </section>
 
