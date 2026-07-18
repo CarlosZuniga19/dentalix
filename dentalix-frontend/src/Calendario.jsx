@@ -13,7 +13,19 @@ export default function Calendario() {
   // Estado para navegar entre meses
   const [fechaBase, setFechaBase] = useState(new Date());
 
+  // Observador para detectar modo oscuro en tiempo real y cambiar fondos
+  const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
+
   const API_URL = 'https://dentalix.lat/api.php';
+
+  // Efecto para escuchar los cambios de tema (Claro/Oscuro)
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setEsOscuro(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     fetch(`${API_URL}?accion=calendario_datos`)
@@ -117,10 +129,10 @@ export default function Calendario() {
           <button 
             onClick={toggleModoBloqueo}
             disabled={guardando}
-            className={`p-2.5 sm:px-5 sm:py-2.5 rounded-full flex items-center justify-center gap-2 transition-all font-bold shadow-sm border border-gray-200 disabled:opacity-50 ${
+            className={`p-2.5 sm:px-5 sm:py-2.5 rounded-full flex items-center justify-center gap-2 transition-all font-bold shadow-sm border disabled:opacity-50 ${
               modoBloqueo 
                 ? 'bg-danger text-white border-danger animate-pulse' 
-                : 'bg-white text-dark hover:bg-gray-50'
+                : (esOscuro ? 'bg-background text-dark border-gray-800 hover:bg-gray-800' : 'bg-white text-dark hover:bg-gray-50 border-gray-200')
             }`}
           >
             {modoBloqueo ? <ShieldCheck size={20} /> : <ShieldAlert size={20} />}
@@ -130,16 +142,16 @@ export default function Calendario() {
           </button>
         </div>
 
-        {/* Controles de navegación de mes tipo "Píldora" */}
+        {/* Controles de navegación de mes tipo "Píldora" (Aplica bg-background en dark mode) */}
         <div className="flex flex-col items-center gap-2 w-full">
-          <div className="flex items-center gap-2 bg-white rounded-full border border-gray-200 p-1 shadow-sm w-max">
-            <button onClick={mesAnterior} className="p-1 sm:p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+          <div className={`flex items-center gap-2 rounded-full border p-1 shadow-sm w-max transition-colors ${esOscuro ? 'bg-background border-gray-800' : 'bg-white border-gray-200'}`}>
+            <button onClick={mesAnterior} className={`p-1 sm:p-1.5 rounded-full transition-colors ${esOscuro ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}>
               <ChevronLeft size={18} className="text-dark" />
             </button>
             <h1 className="text-sm sm:text-base font-bold text-dark capitalize min-w-[120px] text-center">
               {fechaBase.toLocaleString('es-MX', { month: 'long', year: 'numeric' })}
             </h1>
-            <button onClick={mesSiguiente} className="p-1 sm:p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+            <button onClick={mesSiguiente} className={`p-1 sm:p-1.5 rounded-full transition-colors ${esOscuro ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}>
               <ChevronRight size={18} className="text-dark" />
             </button>
           </div>
@@ -183,7 +195,8 @@ export default function Calendario() {
                   >
                     {dia && (
                       <>
-                        <div className="p-2 md:p-3 pb-1 border-b border-gray-100 flex justify-between items-center bg-white/50">
+                        {/* Encabezado del día (Aplica bg-background en dark mode) */}
+                        <div className={`p-2 md:p-3 pb-1 border-b flex justify-between items-center transition-colors ${esOscuro ? 'bg-background border-gray-800' : 'bg-white/50 border-gray-100'}`}>
                           <span className="text-xs font-bold text-muted uppercase">{diasSemana[diaIndex]}</span>
                           <span className={`text-lg font-black ${isBlocked ? 'text-danger' : 'text-dark'}`}>{dia.numero}</span>
                         </div>
@@ -191,7 +204,7 @@ export default function Calendario() {
                         <div className="p-1 md:p-2 flex-1 flex flex-col gap-1 overflow-y-auto relative">
                           {isBlocked ? (
                             <div className="absolute inset-0 flex items-center justify-center p-2">
-                              <span className="text-danger font-black uppercase text-[10px] md:text-xs text-center border-2 border-danger rounded px-1 rotate-[-12deg] bg-white">
+                              <span className="text-danger font-black uppercase text-[10px] md:text-xs text-center border-2 border-danger rounded px-1 rotate-[-12deg] bg-white dark:bg-background">
                                 No Disponible
                               </span>
                             </div>
