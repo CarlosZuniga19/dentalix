@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3 } from 'lucide-react';
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -11,6 +11,7 @@ import Citas from './Citas';
 import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 import Reportes from './Reportes';
+import Consentimientos from './Consentimientos';
 
 // =========================================================================
 // CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
@@ -62,6 +63,7 @@ function RouteChangeListener({ setBackAction }) {
 function Layout({ children, nombreClinica, backAction }) {
   // Observador en tiempo real para que los componentes cambien cuando el sistema cambia de tema
   const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
+  const currentUserId = localStorage.getItem('dentalix_usuario_id'); // Detectar usuario actual
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -87,6 +89,12 @@ function Layout({ children, nombreClinica, backAction }) {
         <NavItem to="/pacientes" icon={<Users />} label="Pacientes" />
         <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" />
         <NavItem to="/reportes" icon={<BarChart3 />} label="Reportes" />
+        
+        {/* Solo el usuario 1 ve la pestaña de Consentimientos */}
+        {currentUserId === '1' && (
+          <NavItem to="/consentimientos" icon={<FileText />} label="Consentimientos" />
+        )}
+
         <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
@@ -126,6 +134,12 @@ function Layout({ children, nombreClinica, backAction }) {
             <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
             <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
             <MobileNavItem to="/reportes" icon={<BarChart3 size={22} />} label="Reportes" />
+            
+            {/* Solo el usuario 1 ve la pestaña de Consentimientos en móvil */}
+            {currentUserId === '1' && (
+              <MobileNavItem to="/consentimientos" icon={<FileText size={22} />} label="Consentimientos" />
+            )}
+
             <MobileNavItem to="/ajustes" icon={<Settings size={22} />} label="Ajustes" />
           </div>
         </nav>
@@ -264,6 +278,7 @@ export default function App() {
             <Route path="/pacientes" element={<Pacientes />} />
             <Route path="/procedimientos" element={<Procedimientos />} />
             <Route path="/reportes" element={<Reportes />} />
+            <Route path="/consentimientos" element={<Consentimientos />} />
             <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} />} />
           </Routes>
         </Layout>

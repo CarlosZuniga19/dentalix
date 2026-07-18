@@ -52,7 +52,37 @@ OBSERVACIONES
 Operatoria Dental: Sin campos extra que llenar
 Exodoncia Simple: Sin campos extra que llenar
 Endodoncia: Sin campos extra que llenar
-Exodoncia Terceros Molares: TERCER MOLAR A EXTRAER aqui se coloca el numero y bolita a rellenar ára seleccionar el molar 18  28  38  48
+Exodoncia Terceros Molares: TERCER MOLAR A EXTRAER aqui se coloca el numero y bolita a rellenar ára seleccionar el molar 18,  28,  38,  48, tambien para este el PROTOCOLO CLÍNICO DEL PROCEDIMIENTO es diferente y tienes estas opciones a rellenar con la bolita:
+Evaluación clínica.
+Odontosección (sección del diente).
+Evaluación radiográfica.
+Luxación y extracción del tercer molar.
+Interpretación de radiografía panorámica y/o
+Legrado y limpieza del alvéolo.
+tomografía.
+Revisión de antecedentes médicos.
+Irrigación quirúrgica.
+Toma de signos vitales cuando esté indicada. 
+Regularización ósea cuando sea necesaria.
+Aplicación de anestesia local.
+Colocación de material hemostático cuando esté indicado.
+Incisión quirúrgica cuando sea necesaria.
+Sutura.
+Despegamiento de colgajo mucoperióstico. 
+Control postoperatorio.
+Osteotomía (eliminación controlada de hueso).
+Retiro de suturas cuando corresponda.
+tambien este archivo tiene una seccion llamamda INDICACIONES POSTOPERATORIAS con los siguientes campos a rellenar con la bolita:
+Mantener la gasa según indicación profesional.
+Seguir estrictamente la medicación prescrita.
+Aplicar frío local durante las primeras horas.
+Mantener adecuada higiene oral.
+No fumar.
+Asistir a controles postoperatorios.
+No consumir bebidas alcohólicas.
+Informar inmediatamente cualquier sangrado abundante, fiebre, dolor intenso, dificultad respiratoria o alteración sensitiva persistente.
+No escupir durante las primeras horas.
+
 
 
 
