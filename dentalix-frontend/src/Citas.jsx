@@ -985,7 +985,7 @@ export default function Citas() {
 
                     </div>
 
-                    {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
+                    {/* MODAL DE ODONTOGRAMA A PANT ALLA COMPLETA */}
                     {dienteActivoHistorial && (
                       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">

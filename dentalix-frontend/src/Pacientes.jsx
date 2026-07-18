@@ -787,7 +787,7 @@ export default function Pacientes() {
 
       </div>
 
-      {/* ================= SECCIÓN ODONTOGRAMA ================= */}
+      {/* ================= SECCIÓN  ODONTOGRAMA ================= */}
       <section className="w-full py-6 bg-white rounded-3xl shadow-sm border border-gray-100" id="odontograma-capture">
         <div className="px-6 sm:px-8 mb-8 mt-2">
           <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
