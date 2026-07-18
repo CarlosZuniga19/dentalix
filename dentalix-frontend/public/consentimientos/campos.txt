@@ -1,0 +1,58 @@
+Para todos los docs te indicare si es caja de texto si termina en : el campo y si es texto en mayus solo es lo que indica el nombre de la seccion, para que en la plataforma si salgan los nombres de secciones para que sea mas facil para el usuario rellenar el formulario
+Campos basicos en todos los documentos:
+DIENTE(S) A TRATAR
+Arcada: aqui se tiene que palomear un cuadrito de superior o inferior
+Cuadrante:
+Diente(s):
+Superficie(s) comprometida(s):
+Diagnóstico clínico:
+Diagnóstico radiográfico:
+DESCRIPCIÓN DEL PROCEDIMIENTO AUTORIZADO
+Yo, aqui poner nombre del paciente
+PROTOCOLO CLÍNICO DEL PROCEDIMIENTO
+los siguientes campos son cuadritos a palomear, en la plataforma poner bolitas vacias y que se rellenen de verde
+Evaluación clínica.
+Evaluación radiográfica.
+Diagnóstico definitivo.
+Selección del color restaurador cuando corresponda. 
+Anestesia local si es necesaria.
+Aislamiento relativo o absoluto mediante dique de goma.
+Eliminación de tejido cariado, tejido contaminado o restauraciones defectuosas.
+Grabado ácido de esmalte y dentina cuandocorresponda.
+Aplicación de sistemas adhesivos.
+Colocación del material restaurador.
+Fotopolimerización por incrementos cuando se utilicen resinas compuestas.
+Verificación anatómica y funcional
+Ajuste oclusal.
+Acabado y pulido final.
+Preparación cavitaria según principios conservadores
+actuales.
+Control clínico posterior.
+Protección dentinopulpar cuando esté indicada.
+FIRMAS
+PACIENTE O REPRESENTANTE LEGAL
+Nombre: 
+Documento: 
+Firma: 
+Fecha: 
+ODONTÓLOGO TRATANTE
+Nombre: 
+Registro profesional: 
+Firma: 
+Fecha:
+TESTIGO (OPCIONAL)
+Nombre: 
+Documento:
+Firma: 
+Fecha: 
+OBSERVACIONES
+:
+
+
+Operatoria Dental: Sin campos extra que llenar
+Exodoncia Simple: Sin campos extra que llenar
+Endodoncia: Sin campos extra que llenar
+Exodoncia Terceros Molares: TERCER MOLAR A EXTRAER aqui se coloca el numero y bolita a rellenar ára seleccionar el molar 18  28  38  48
+
+
+
