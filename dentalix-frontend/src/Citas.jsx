@@ -38,7 +38,11 @@ export default function Citas() {
 
   const [idCitaEditando, setIdCitaEditando] = useState(null);
   const [fecha, setFecha] = useState('');
-  const [hora, setHora] = useState('');
+  
+  // NUEVOS ESTADOS PARA HORA
+  const [horaCombo, setHoraCombo] = useState('08');
+  const [minutoCombo, setMinutoCombo] = useState('00');
+  
   const [profesional, setProfesional] = useState(doctorPorDefecto); // Inicializa con el doctor detectado
   const [estadoCita, setEstadoCita] = useState(['programado']);
   const [datosPaciente, setDatosPaciente] = useState({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
@@ -144,8 +148,11 @@ export default function Citas() {
     setPacienteSeleccionado(null);
     setIdCitaEditando(null);
     setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
-    setFecha(''); setHora(''); setEstadoCita(['programado']);
-    setProfesional(doctorPorDefecto); // Resetea el desplegable al doctor del usuario
+    setFecha(''); 
+    setHoraCombo('08'); // Reset combos hora
+    setMinutoCombo('00');
+    setEstadoCita(['programado']);
+    setProfesional(doctorPorDefecto); 
     setProcedimientosSeleccionados([]); setAbono('');
     setBusquedaPaciente('');
   };
@@ -164,7 +171,16 @@ export default function Citas() {
     resetFormulario();
     setIdCitaEditando(c.id_cita);
     setFecha(c.fecha);
-    setHora(c.hora);
+    
+    // Parseamos la hora guardada (ej. "09:30:00") a los combos
+    if (c.hora) {
+      const partesHora = c.hora.split(':');
+      if (partesHora.length >= 2) {
+        setHoraCombo(partesHora[0]);
+        setMinutoCombo(partesHora[1]);
+      }
+    }
+    
     setEstadoCita(c.estado ? c.estado.split(',') : ['programado']);
     
     if (c.abono !== null && c.abono !== undefined) {
@@ -265,7 +281,9 @@ export default function Citas() {
 
   const guardarCitaCompleta = () => {
     if (!datosPaciente.nombre) { alert("Debes seleccionar o escribir un paciente."); return; }
-    if (!fecha || !hora) { alert("Fecha y hora son obligatorios."); return; }
+    if (!fecha || !horaCombo || !minutoCombo) { alert("Fecha y hora son obligatorios."); return; }
+
+    const horaFinal = `${horaCombo}:${minutoCombo}`; // Concatenamos la hora final
 
     const procedimientosExpandidos = [];
     procedimientosSeleccionados.forEach(p => {
@@ -274,7 +292,7 @@ export default function Citas() {
           id: p.id,
           precio_base: p.precio_base,
           fecha_procedimiento: fecha,
-          hora_procedimiento: hora,
+          hora_procedimiento: horaFinal,
           // Convertimos el arreglo de vuelta a un texto separado por comas para enviarlo al API
           diente: (p.dientes && p.dientes.length > 0) ? p.dientes.join(', ') : null 
         });
@@ -286,7 +304,7 @@ export default function Citas() {
       cita: { 
         id: idCitaEditando, 
         fecha, 
-        hora, 
+        hora: horaFinal, 
         estado: estadoCita,
         abono: parseFloat(abono) || 0,
         total_pagar: totalProcedimientos,
@@ -544,7 +562,34 @@ export default function Citas() {
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label><input type="time" step="900" value={hora} onChange={e => setHora(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          
+          {/* NUEVOS DROPDOWNS PARA LA HORA (8 AM a 20 PM) */}
+          <div>
+            <label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label>
+            <div className="flex gap-2 w-full">
+              <select 
+                value={horaCombo} 
+                onChange={e => setHoraCombo(e.target.value)} 
+                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+              >
+                {Array.from({length: 13}, (_, i) => {
+                  const h = (i + 8).toString().padStart(2, '0');
+                  return <option key={h} value={h}>{h}</option>;
+                })}
+              </select>
+              <span className="flex items-center text-dark font-bold">:</span>
+              <select 
+                value={minutoCombo} 
+                onChange={e => setMinutoCombo(e.target.value)} 
+                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+              >
+                <option value="00">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
+            </div>
+          </div>
           
           {/* NUEVO DROPDOWN DE PROFESIONAL */}
           <div>
@@ -650,7 +695,7 @@ export default function Citas() {
             <p className="text-xs text-[#148F77] italic my-2">Enviaremos un mensaje inteligente calculando si la cita es hoy, mañana o después.</p>
             <button 
               type="button"
-              onClick={(e) => abrirWhatsAppRecordatorio(e, datosPaciente.telefono, datosPaciente.nombre, fecha, hora)}
+              onClick={(e) => abrirWhatsAppRecordatorio(e, datosPaciente.telefono, datosPaciente.nombre, fecha, `${horaCombo}:${minutoCombo}`)}
               className="bg-[#25D366] hover:bg-[#20bd5a] text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors"
             >
               <MessageCircle size={16}/> Enviar Confirmación WA

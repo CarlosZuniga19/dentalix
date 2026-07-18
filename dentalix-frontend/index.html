@@ -13,10 +13,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <!-- Regresar a default permite que iOS respete el theme-color sin romper el diseño -->
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    
+    <!-- ESTA ES LA LÍNEA CLAVE PARA QUE EN iOS DIGA DENTALIX Y NO EL NOMBRE DEL PROYECTO -->
+    <meta name="apple-mobile-web-app-title" content="Dentalix" />
 
     <!-- Removido el viewport-fit=cover para respetar el Safe Area del iPhone -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>dentalix-frontend</title>
+    
+    <!-- EL TÍTULO QUE LEE LA PC AL INSTALAR -->
+    <title>Dentalix</title>
+    
     <style>
       /* Regla Maestra para Modo Oscuro Dentalix */
       html.dark body { background-color: #111827 !important; color: #f9fafb !important; }
