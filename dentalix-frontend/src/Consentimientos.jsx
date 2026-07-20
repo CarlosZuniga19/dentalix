@@ -53,20 +53,6 @@ export default function Consentimientos() {
     doc.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const abrirDocumento = (nombreDocumento) => {
-    // Forzamos la ruta absoluta y agregamos ?nocache= para evitar la pantalla blanca
-    const url = `${window.location.origin}/consentimientos/${encodeURIComponent(nombreDocumento)}.pdf?nocache=${new Date().getTime()}`;
-    
-    // Creamos un enlace nativo invisible
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
-
   return (
     <div className="max-w-6xl mx-auto pb-24">
       <div className="flex flex-col mb-8">
@@ -95,11 +81,17 @@ export default function Consentimientos() {
         {filtrados.length > 0 ? (
           filtrados.map((doc, index) => {
             const Icono = doc.icono;
+            
+            // Forzamos la ruta absoluta y el nocache directamente en el href
+            const url = `${window.location.origin}/consentimientos/${encodeURIComponent(doc.nombre)}.pdf?nocache=${Date.now()}`;
+
             return (
-              <button
+              <a
                 key={index}
-                onClick={() => abrirDocumento(doc.nombre)}
-                className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 ${doc.border} hover:shadow-md transition-all flex items-center gap-3 text-left group w-full`}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 ${doc.border} hover:shadow-md transition-all flex items-center gap-3 text-left group w-full cursor-pointer`}
               >
                 <div className={`${doc.bg} ${doc.color} p-2.5 rounded-xl shrink-0 group-hover:scale-110 transition-transform`}>
                   <Icono size={22} />
@@ -110,7 +102,7 @@ export default function Consentimientos() {
                 </h3>
 
                 <ExternalLink size={18} className="text-gray-300 group-hover:text-primary transition-colors shrink-0" />
-              </button>
+              </a>
             );
           })
         ) : (
