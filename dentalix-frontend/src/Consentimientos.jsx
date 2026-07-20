@@ -54,9 +54,17 @@ export default function Consentimientos() {
   );
 
   const abrirDocumento = (nombreDocumento) => {
-    // Usamos encodeURI para transformar los espacios y acentos en caracteres válidos para la URL
-    const url = encodeURI(`/consentimientos/${nombreDocumento}.pdf`);
-    window.open(url, '_blank');
+    // Forzamos la ruta absoluta y agregamos ?nocache= para evitar la pantalla blanca
+    const url = `${window.location.origin}/consentimientos/${encodeURIComponent(nombreDocumento)}.pdf?nocache=${new Date().getTime()}`;
+    
+    // Creamos un enlace nativo invisible
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
