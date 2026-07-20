@@ -53,6 +53,36 @@ export default function Consentimientos() {
     doc.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  const abrirDocumento = async (nombreDocumento) => {
+    try {
+      // Usamos la URL absoluta de tu servidor
+      const url = `https://dentalix.lat/consentimientos/${encodeURIComponent(nombreDocumento)}.pdf`;
+      
+      // 1. Descargamos el archivo por detrás (Bypass a React Router)
+      const response = await fetch(url);
+      const blob = await response.blob();
+      
+      // 2. Creamos un objeto de archivo local que el celular no puede interceptar
+      const blobUrl = window.URL.createObjectURL(blob);
+      
+      // 3. Forzamos al sistema operativo a descargarlo o abrirlo nativamente
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${nombreDocumento}.pdf`; 
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      
+      // Limpiamos memoria
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 5000);
+      
+    } catch (error) {
+      console.error("Error al obtener PDF:", error);
+      // Plan B agresivo si falla la red
+      window.location.href = `https://dentalix.lat/consentimientos/${encodeURIComponent(nombreDocumento)}.pdf`;
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto pb-24">
       <div className="flex flex-col mb-8">
@@ -81,17 +111,14 @@ export default function Consentimientos() {
         {filtrados.length > 0 ? (
           filtrados.map((doc, index) => {
             const Icono = doc.icono;
-            
-            // Forzamos la ruta absoluta y el nocache directamente en el href
-            const url = `${window.location.origin}/consentimientos/${encodeURIComponent(doc.nombre)}.pdf?nocache=${Date.now()}`;
-
             return (
-              <a
+              <button
                 key={index}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 ${doc.border} hover:shadow-md transition-all flex items-center gap-3 text-left group w-full cursor-pointer`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  abrirDocumento(doc.nombre);
+                }}
+                className={`bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-gray-100 ${doc.border} hover:shadow-md transition-all flex items-center gap-3 text-left group w-full`}
               >
                 <div className={`${doc.bg} ${doc.color} p-2.5 rounded-xl shrink-0 group-hover:scale-110 transition-transform`}>
                   <Icono size={22} />
@@ -102,7 +129,7 @@ export default function Consentimientos() {
                 </h3>
 
                 <ExternalLink size={18} className="text-gray-300 group-hover:text-primary transition-colors shrink-0" />
-              </a>
+              </button>
             );
           })
         ) : (
