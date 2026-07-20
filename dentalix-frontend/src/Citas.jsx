@@ -241,6 +241,14 @@ export default function Citas() {
     if (c.abono !== null && c.abono !== undefined) {
       setAbono(c.abono);
     }
+
+    // NUEVO: Cargar firma de la cita/presupuesto si existe
+    if (c.firma_cita) {
+      setFirmaBase64(c.firma_cita);
+    } else {
+      setFirmaBase64(null);
+    }
+    setCanvasTieneTrazos(false);
     
     const objPaciente = {
       id: c.id_paciente, nombre: c.paciente, telefono: c.telefono || '',
@@ -354,6 +362,12 @@ export default function Citas() {
       }
     });
 
+    // NUEVO: Capturar firma antes de guardar la cita
+    let finalSignatureCita = firmaBase64;
+    if (canvasRef.current && canvasTieneTrazos) {
+      finalSignatureCita = canvasRef.current.toDataURL('image/png');
+    }
+
     const payload = {
       paciente: datosPaciente,
       cita: { 
@@ -363,7 +377,8 @@ export default function Citas() {
         estado: estadoCita,
         abono: parseFloat(abono) || 0,
         total_pagar: totalProcedimientos,
-        restante: totalAPagar
+        restante: totalAPagar,
+        firma: finalSignatureCita
       },
       procedimientos: procedimientosExpandidos 
     };
@@ -386,7 +401,21 @@ export default function Citas() {
 
   const generarPresupuestoPDF = () => {
     const doc = new jsPDF();
-    const primaryColor = [139, 92, 246]; 
+    
+    // Obtenemos los ajustes de la BD (Caché local)
+    let primaryColor = [139, 92, 246]; // Morado por defecto
+    const colorCache = localStorage.getItem('dentalix_color_primario');
+    if (colorCache) {
+      const hex = colorCache.replace('#', '');
+      primaryColor = [
+        parseInt(hex.substring(0, 2), 16),
+        parseInt(hex.substring(2, 4), 16),
+        parseInt(hex.substring(4, 6), 16)
+      ];
+    }
+    
+    const nombreApp = localStorage.getItem('dentalix_nombre_app') || 'DENTALIX CLÍNICA';
+    const logoCache = localStorage.getItem('dentalix_logo');
     
     doc.setFillColor(...primaryColor);
     doc.rect(0, 0, 210, 35, 'F');
@@ -395,8 +424,13 @@ export default function Citas() {
     doc.setFontSize(22);
     doc.text("PRESUPUESTO DENTAL", 14, 23);
     
-    doc.setFontSize(10);
-    doc.text("DENTALIX CLÍNICA", 155, 23);
+    // Inyección del Logo de la Clínica si existe, o el nombre como respaldo
+    if (logoCache) {
+      doc.addImage(logoCache, 'PNG', 160, 5, 35, 25);
+    } else {
+      doc.setFontSize(10);
+      doc.text(nombreApp, 155, 23);
+    }
 
     doc.setTextColor(...primaryColor);
     doc.setFontSize(12);
@@ -561,14 +595,14 @@ export default function Citas() {
             citas.map(c => (
               <div 
                 key={c.id_cita} 
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm transition-all group relative overflow-hidden flex flex-col hover:border-primary/30"
+                className="bg-white dark:bg-surface rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm transition-all group relative overflow-hidden flex flex-col hover:border-primary/30 dark:hover:border-primary/50"
               >
                 {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
                 
                 {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
                 <div 
                   onClick={() => abrirEdicionCita(c)}
-                  className="p-4 flex justify-between items-center hover:bg-surface/60 cursor-pointer"
+                  className="p-4 flex justify-between items-center hover:bg-surface/60 dark:hover:bg-background/40 cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
                     <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
@@ -578,32 +612,32 @@ export default function Citas() {
                     <div>
                       <h3 className="font-bold text-dark text-base flex items-center gap-2">
                         {c.paciente}
-                        {c.esMultiple && <span className="bg-surface text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
+                        {c.esMultiple && <span className="bg-surface dark:bg-background text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
                       </h3>
                       <p className="text-xs text-muted">{c.telefono || 'Sin teléfono'}</p>
                     </div>
                   </div>
-                  <span className="bg-green-100 text-green-700 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
+                  <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
                     {c.estado || 'Programada'}
                   </span>
                 </div>
                 
                 {/* Botón Inferior: WhatsApp */}
-                <div className="px-4 py-2 border-t border-gray-50 bg-gray-50/50 flex justify-end">
+                <div className="px-4 py-2 border-t border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-background/50 flex justify-end">
                   <button
                     type="button"
                     onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
                     className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
                   >
                     <MessageCircle size={14} />
-                    Enviar Recordatorio WA
+                    Enviar Recordatorio
                   </button>
                 </div>
 
               </div>
             ))
           ) : (
-            <div className="bg-white p-8 rounded-2xl border text-center text-muted">No hay citas programadas.</div>
+            <div className="bg-white dark:bg-surface p-8 rounded-2xl border dark:border-gray-800 text-center text-muted">No hay citas programadas.</div>
           )}
         </div>
       </div>
@@ -617,14 +651,14 @@ export default function Citas() {
       </button>
 
       {/* Buscador Superior */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border-2 border-primary/20 relative">
+      <div className="bg-white dark:bg-surface p-6 rounded-3xl shadow-sm border-2 border-primary/20 relative">
         <h2 className="text-sm font-black text-primary uppercase mb-2">Buscador de Pacientes Registrados</h2>
         <div className="relative">
-          <input type="text" placeholder="Escribe el nombre para buscar..." value={busquedaPaciente} onChange={(e) => setBusquedaPaciente(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark text-sm font-medium" />
+          <input type="text" placeholder="Escribe el nombre para buscar..." value={busquedaPaciente} onChange={(e) => setBusquedaPaciente(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-full focus:outline-none focus:border-primary text-dark text-sm font-medium" />
           <Search className="absolute left-3.5 top-3.5 text-muted" size={18} />
         </div>
         {busquedaPaciente && (
-          <div className="absolute left-6 right-6 mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-gray-50">
+          <div className="absolute left-6 right-6 mt-1 bg-white dark:bg-background border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-gray-50 dark:divide-gray-800">
             {pacientesFiltrados.length > 0 ? pacientesFiltrados.map(p => (
               <button key={p.id} onClick={() => seleccionarPacienteExistente(p)} className="w-full p-3 text-left hover:bg-primary/5 text-dark font-bold text-sm flex justify-between">
                 <span>{p.nombre}</span> <span className="text-xs text-muted font-normal">{p.telefono}</span>
@@ -640,9 +674,9 @@ export default function Citas() {
         )}
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 sm:p-8 space-y-10">
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
+          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-full text-dark" /></div>
           
           {/* NUEVOS DROPDOWNS PARA LA HORA (8 AM a 20 PM) */}
           <div>
@@ -651,7 +685,7 @@ export default function Citas() {
               <select 
                 value={horaCombo} 
                 onChange={e => setHoraCombo(e.target.value)} 
-                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+                className="w-1/2 p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
               >
                 {Array.from({length: 13}, (_, i) => {
                   const h = (i + 8).toString().padStart(2, '0');
@@ -662,7 +696,7 @@ export default function Citas() {
               <select 
                 value={minutoCombo} 
                 onChange={e => setMinutoCombo(e.target.value)} 
-                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+                className="w-1/2 p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
               >
                 <option value="00">00</option>
                 <option value="15">15</option>
@@ -678,7 +712,7 @@ export default function Citas() {
             <select 
               value={profesional} 
               onChange={e => setProfesional(e.target.value)} 
-              className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark font-medium outline-none focus:border-primary appearance-none"
+              className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-full text-dark font-medium outline-none focus:border-primary appearance-none"
             >
               <option value={doctorPorDefecto}>{doctorPorDefecto}</option>
               <option value="Doctor invitado">Doctor invitado</option>
@@ -689,7 +723,7 @@ export default function Citas() {
 
         <section className="p-4 bg-surface rounded-2xl border border-primary/20">
           <label className="block text-sm font-bold text-primary mb-2">Estado de la Cita</label>
-          <select multiple value={estadoCita} onChange={e => setEstadoCita(Array.from(e.target.selectedOptions, option => option.value))} className="w-full p-3 bg-white border border-gray-200 rounded-xl text-dark" size="5">
+          <select multiple value={estadoCita} onChange={e => setEstadoCita(Array.from(e.target.selectedOptions, option => option.value))} className="w-full p-3 bg-white dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl text-dark" size="5">
             <option value="programado">Programado</option>
             <option value="solicitado">Solicitado</option>
             <option value="llegó">El paciente llegó</option>
@@ -699,20 +733,20 @@ export default function Citas() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">{idCitaEditando ? "Editando Datos del Paciente" : (pacienteSeleccionado ? "Datos del Paciente Seleccionado" : "Paciente Nuevo")}</h2>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b dark:border-gray-800 pb-2">{idCitaEditando ? "Editando Datos del Paciente" : (pacienteSeleccionado ? "Datos del Paciente Seleccionado" : "Paciente Nuevo")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
-            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="date" placeholder="Fecha Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
-            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
+            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl font-bold" />
+            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl" />
+            <input type="date" placeholder="Fecha Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl" />
+            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl" />
+            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl md:col-span-2" />
+            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl md:col-span-2" rows="2"></textarea>
           </div>
         </section>
 
         {/* --- PROCEDIMIENTOS ASIGNADOS CON POPUP --- */}
         <section>
-          <div className="flex justify-between items-center mb-4 border-b pb-2">
+          <div className="flex justify-between items-center mb-4 border-b dark:border-gray-800 pb-2">
             <h2 className="text-xl font-bold text-dark flex items-center gap-2">
               Procedimientos Programados
               {procedimientosSeleccionados.length > 0 && <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full font-black">{procedimientosSeleccionados.length}</span>}
@@ -723,16 +757,16 @@ export default function Citas() {
           </div>
 
           {procedimientosSeleccionados.length > 0 ? (
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="p-4 bg-gray-50 dark:bg-background/50 rounded-xl border border-gray-200 dark:border-gray-800/50">
               {procedimientosSeleccionados.map((p, idx) => (
-                <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white p-3 rounded-lg border shadow-sm gap-3">
+                <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white dark:bg-surface p-3 rounded-lg border dark:border-gray-800 shadow-sm gap-3">
                   <div className="font-bold text-dark flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
                     <span>{p.nombre}</span>
                     {p.dientes && p.dientes.length > 0 && (
                       <button 
                         type="button"
                         onClick={() => editarProcedimiento(idx)}
-                        className="bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 text-xs font-black px-3 py-1 rounded-full transition-colors flex items-center w-max gap-1 shadow-sm"
+                        className="bg-orange-50 hover:bg-orange-100 border border-orange-200 dark:bg-orange-900/20 dark:border-orange-800/50 text-orange-600 dark:text-orange-400 text-xs font-black px-3 py-1 rounded-full transition-colors flex items-center w-max gap-1 shadow-sm"
                         title="Haz clic para editar los dientes asignados"
                       >
                         <Edit2 size={12} /> Dientes: {p.dientes.join(', ')}
@@ -748,7 +782,7 @@ export default function Citas() {
                         const nuevaCant = parseInt(e.target.value);
                         setProcedimientosSeleccionados(procedimientosSeleccionados.map((proc, i) => i === idx ? { ...proc, cantidad: nuevaCant } : proc));
                       }} 
-                      className="p-1.5 bg-surface border border-gray-200 rounded text-xs text-dark focus:border-primary outline-none"
+                      className="p-1.5 bg-surface border border-gray-200 dark:border-gray-800 rounded text-xs text-dark focus:border-primary outline-none"
                     >
                       {[1,2,3,4,5,6,7,8,9,10,12,15,20].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
@@ -759,21 +793,21 @@ export default function Citas() {
                   </span>
                 </div>
               ))}
-              <div className="flex justify-between text-lg font-black text-primary mt-4 pt-3 border-t">
+              <div className="flex justify-between text-lg font-black text-primary mt-4 pt-3 border-t dark:border-gray-800">
                 <span>Costo Total:</span><span>${totalProcedimientos.toFixed(2)}</span>
               </div>
             </div>
           ) : (
-             <div className="text-center p-6 bg-surface rounded-xl border border-dashed border-gray-300 text-muted text-sm">
+             <div className="text-center p-6 bg-surface rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-muted text-sm">
                 No hay procedimientos asignados a esta cita aún.
              </div>
           )}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-[#E8F8F5] border border-[#A2D9CE] rounded-2xl flex flex-col justify-between">
-            <span className="text-xs font-bold text-[#117A65] flex items-center gap-1"><MessageCircle size={16}/> CONFIRMACIÓN WHATSAPP</span>
-            <p className="text-xs text-[#148F77] italic my-2">Enviaremos un mensaje inteligente calculando si la cita es hoy, mañana o después.</p>
+          <div className="p-4 bg-[#E8F8F5] dark:bg-emerald-900/10 border border-[#A2D9CE] dark:border-emerald-800/40 rounded-2xl flex flex-col justify-between">
+            <span className="text-xs font-bold text-[#117A65] dark:text-emerald-400 flex items-center gap-1"><MessageCircle size={16}/> CONFIRMACIÓN WHATSAPP</span>
+            <p className="text-xs text-[#148F77] dark:text-emerald-500/80 italic my-2">Enviaremos un mensaje inteligente calculando si la cita es hoy, mañana o después.</p>
             <button 
               type="button"
               onClick={(e) => abrirWhatsAppRecordatorio(e, datosPaciente.telefono, datosPaciente.nombre, fecha, `${horaCombo}:${minutoCombo}`)}
@@ -782,17 +816,17 @@ export default function Citas() {
               <MessageCircle size={16}/> Enviar Confirmación WA
             </button>
           </div>
-          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex flex-col justify-between">
-            <span className="text-xs font-bold text-blue-800">DOCUMENTO DE COTIZACIÓN</span>
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/40 rounded-2xl flex flex-col justify-between">
+            <span className="text-xs font-bold text-blue-800 dark:text-blue-400">DOCUMENTO DE COTIZACIÓN</span>
             <p className="text-xs text-muted my-2">Desglose de costos calcado al diseño solicitado.</p>
             <button onClick={generarPresupuestoPDF} className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors">
               <FileDown size={16}/> Generar Presupuesto PDF
             </button>
 
             {/* --- SECCIÓN DE FIRMA DIGITAL PARA PRESUPUESTO --- */}
-            <div className="mt-4 pt-4 border-t border-blue-200">
+            <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800/40">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-blue-800">Firma del paciente</span>
+                <span className="text-xs font-bold text-blue-800 dark:text-blue-400">Firma del paciente</span>
                 {(firmaBase64 || canvasTieneTrazos) && (
                   <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
                     Borrar Firma
@@ -802,15 +836,15 @@ export default function Citas() {
               
               <div className="flex flex-col items-center justify-center w-full">
                 {firmaBase64 && !canvasTieneTrazos ? (
-                  <div className="relative border-2 border-blue-200 rounded-xl w-full h-24 flex items-center justify-center bg-white shadow-sm overflow-hidden">
+                  <div className="relative border-2 border-blue-200 dark:border-blue-800/50 rounded-2xl w-full max-w-lg h-40 flex items-center justify-center bg-white dark:bg-surface shadow-sm overflow-hidden">
                     <img src={firmaBase64} alt="Firma del paciente" className="max-h-full max-w-full object-contain" />
                   </div>
                 ) : (
-                  <div className="bg-white border-2 border-dashed border-blue-300 rounded-xl overflow-hidden relative w-full h-24 touch-none shadow-sm">
+                  <div className="bg-white dark:bg-surface border-2 border-dashed border-blue-300 dark:border-blue-700/50 rounded-2xl overflow-hidden relative w-full max-w-lg h-40 touch-none shadow-sm">
                     <canvas
                       ref={canvasRef}
-                      width={400}
-                      height={96}
+                      width={500}
+                      height={160}
                       className="w-full h-full cursor-crosshair"
                       onPointerDown={iniciarDibujo}
                       onPointerMove={dibujar}
@@ -818,7 +852,7 @@ export default function Citas() {
                       onPointerOut={detenerDibujo}
                     />
                     {!canvasTieneTrazos && (
-                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-blue-800/40 font-medium text-xs px-2 text-center">
+                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-blue-800/40 dark:text-blue-400/30 font-medium text-xs px-2 text-center">
                         Pide al paciente que firme aquí para anexarlo al PDF
                       </div>
                     )}
@@ -831,15 +865,15 @@ export default function Citas() {
         </section>
 
         {/* --- PAGOS CON BOTÓN DE APLICAR ABONO --- */}
-        <section className="p-5 bg-surface border border-gray-200 rounded-2xl">
+        <section className="p-5 bg-surface border border-gray-200 dark:border-gray-800 rounded-2xl">
           <label className="block text-sm font-medium text-muted mb-2">Monto a Cobrar / Abonar en Caja</label>
           <div className="flex flex-col sm:flex-row gap-3 mb-3">
-            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full sm:flex-1 p-3 bg-white border border-gray-200 rounded-full font-bold text-dark outline-none focus:border-primary shadow-sm" />
+            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full sm:flex-1 p-3 bg-white dark:bg-background border border-gray-200 dark:border-gray-800 rounded-full font-bold text-dark outline-none focus:border-primary shadow-sm" />
             <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="w-full sm:w-auto bg-dark hover:bg-black text-white px-6 py-3 rounded-full font-bold text-sm shadow-sm flex items-center justify-center gap-2 shrink-0 transition-colors">
               <Check size={16} /> Aplicar
             </button>
           </div>
-          <div className="mt-4 flex flex-col sm:flex-row sm:justify-between text-sm bg-white p-4 rounded-xl border gap-2 shadow-sm">
+          <div className="mt-4 flex flex-col sm:flex-row sm:justify-between text-sm bg-white dark:bg-surface p-4 rounded-xl border dark:border-gray-800 gap-2 shadow-sm">
             <span className="font-bold text-muted">Total procedimientos: <span className="text-dark">${totalProcedimientos.toFixed(2)}</span></span>
             <span className="font-black text-danger">Por cobrar: ${totalAPagar > 0 ? totalAPagar.toFixed(2) : '0.00'}</span>
           </div>
@@ -855,13 +889,13 @@ export default function Citas() {
       {/* ========================================================================= */}
       {modalProcedimientos && (
         <div className="fixed inset-0 bg-dark/60 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-5xl shadow-2xl flex flex-col mt-auto mb-auto max-h-[90vh]">
+          <div className="bg-white dark:bg-surface rounded-3xl p-5 w-full max-w-5xl shadow-2xl flex flex-col mt-auto mb-auto max-h-[90vh]">
             
-            <div className="flex justify-between items-center mb-4 pb-2 border-b">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b dark:border-gray-800">
               <h3 className="font-black text-xl text-dark">
                 {editandoProcIndex !== null ? "Editar Procedimiento" : "Agregar Procedimiento"}
               </h3>
-              <button onClick={() => setModalProcedimientos(false)} className="p-2 hover:bg-surface rounded-full text-muted hover:text-danger transition-colors"><X size={20}/></button>
+              <button onClick={() => setModalProcedimientos(false)} className="p-2 hover:bg-surface dark:hover:bg-background rounded-full text-muted hover:text-danger transition-colors"><X size={20}/></button>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-6 pr-1 pb-12">
@@ -874,7 +908,7 @@ export default function Citas() {
                     const seleccionado = catalogoProcedimientos.find(p => p.id == e.target.value);
                     setProcTemp(seleccionado);
                   }}
-                  className="w-full p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary"
+                  className="w-full p-3 bg-surface border border-gray-200 dark:border-gray-800 rounded-xl text-dark font-medium outline-none focus:border-primary"
                 >
                   <option value="" disabled>-- Elige un procedimiento --</option>
                   {catalogoProcedimientos.map(p => (
@@ -884,11 +918,11 @@ export default function Citas() {
               </div>
 
               {procTemp && (
-                <div className="border-t pt-4">
+                <div className="border-t dark:border-gray-800 pt-4">
                   {/* === BLOQUE EXACTO DEL ODONTOGRAMA === */}
                   <section className="w-full py-6">
                     <div className="px-2 sm:px-8 mb-8">
-                      <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
+                      <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Historial Dental (Odontograma)</h2>
                       <p className="text-xs text-muted">Toca uno o varios dientes para asignarles este padecimiento.</p>
                     </div>
 
@@ -928,7 +962,7 @@ export default function Citas() {
                                 <img
                                   src={`/odontograma/${diente}.svg`}
                                   alt={`Diente ${diente}`}
-                                  className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110"
+                                  className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110 dark:invert dark:opacity-80"
                                   style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
                                 />
                               </div>
@@ -970,7 +1004,7 @@ export default function Citas() {
                                 <img
                                   src={`/odontograma/${diente}.svg`}
                                   alt={`Diente ${diente}`}
-                                  className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110"
+                                  className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110 dark:invert dark:opacity-80"
                                   style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
                                 />
                               </div>
@@ -988,17 +1022,17 @@ export default function Citas() {
                     {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
                     {dienteActivoHistorial && (
                       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
-                          <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
+                        <div className="bg-white dark:bg-surface rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+                          <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0">
                             <span className="font-black text-lg text-dark">Diente {dienteActivoHistorial}</span>
-                            <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20} className="text-danger"/></button>
+                            <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-background rounded-full transition-colors"><X size={20} className="text-danger"/></button>
                           </div>
                           <div className="p-2 overflow-y-auto flex-1">
                             {CONDICIONES_DENTALES.map((cond, i) => (
                               <button 
                                 key={i} 
                                 onClick={() => aplicarCondicionDental(cond)} 
-                                className="w-full flex items-center gap-3 p-3 hover:bg-surface rounded-xl text-left text-sm font-medium transition-colors"
+                                className="w-full flex items-center gap-3 p-3 hover:bg-surface dark:hover:bg-background rounded-xl text-left text-sm font-medium transition-colors"
                               >
                                 <div className="w-5 h-5 rounded-full border-2 shadow-sm shrink-0" style={{ backgroundColor: cond.color, borderColor: cond.borde || cond.color }}></div>
                                 <span className="text-dark">{cond.nombre}</span>
@@ -1015,7 +1049,7 @@ export default function Citas() {
 
             </div>
 
-            <div className="pt-3 border-t flex justify-end shrink-0">
+            <div className="pt-3 border-t dark:border-gray-800 flex justify-end shrink-0">
               <button 
                 type="button" 
                 onClick={agregarFila} 

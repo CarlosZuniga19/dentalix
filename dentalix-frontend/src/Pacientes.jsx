@@ -372,7 +372,21 @@ export default function Pacientes() {
 
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
-      const primaryColor = [139, 92, 246]; 
+      
+      // Obtenemos los ajustes de la BD (Caché local)
+      let primaryColor = [139, 92, 246]; // Morado por defecto
+      const colorCache = localStorage.getItem('dentalix_color_primario');
+      if (colorCache) {
+        const hex = colorCache.replace('#', '');
+        primaryColor = [
+          parseInt(hex.substring(0, 2), 16),
+          parseInt(hex.substring(2, 4), 16),
+          parseInt(hex.substring(4, 6), 16)
+        ];
+      }
+      
+      const nombreApp = localStorage.getItem('dentalix_nombre_app') || 'DENTALIX CLÍNICA';
+      const logoCache = localStorage.getItem('dentalix_logo');
 
       // --- ENCABEZADO ---
       doc.setFillColor(...primaryColor);
@@ -382,8 +396,13 @@ export default function Pacientes() {
       doc.setFontSize(22);
       doc.text("EXPEDIENTE CLÍNICO", 14, 23);
       
-      doc.setFontSize(10);
-      doc.text("DENTALIX CLÍNICA", 155, 23);
+      // Inyección del Logo de la Clínica si existe, o el nombre como respaldo
+      if (logoCache) {
+        doc.addImage(logoCache, 'PNG', 160, 5, 35, 25);
+      } else {
+        doc.setFontSize(10);
+        doc.text(nombreApp, 155, 23);
+      }
 
       let yPos = 45;
 
@@ -649,13 +668,13 @@ export default function Pacientes() {
           <div><h1 className="text-2xl font-bold text-dark">Pacientes Registrados</h1><p className="text-muted text-sm">Total: {filtrados.length} pacientes</p></div>
           <button onClick={handleNuevoPaciente} className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-full flex items-center gap-2 font-medium shadow-sm shrink-0"><Plus size={20} /> Agregar paciente nuevo</button>
         </div>
-        <div className="relative mb-4"><input type="text" placeholder="Buscar paciente por nombre..." value={busquedaP} onChange={(e) => setBusquedaP(e.target.value)} className="w-full pl-6 pr-4 py-3 bg-white border border-gray-200 rounded-full focus:outline-none focus:border-primary shadow-sm text-dark" /></div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="relative mb-4"><input type="text" placeholder="Buscar paciente por nombre..." value={busquedaP} onChange={(e) => setBusquedaP(e.target.value)} className="w-full pl-6 pr-4 py-3 bg-white dark:bg-surface border border-gray-200 dark:border-gray-800 rounded-full focus:outline-none focus:border-primary shadow-sm text-dark" /></div>
+        <div className="bg-white dark:bg-surface rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
           {filtrados.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-surface border-b border-gray-100 text-muted font-bold text-xs uppercase">
+                  <tr className="bg-surface dark:bg-background border-b border-gray-100 dark:border-gray-800 text-muted font-bold text-xs uppercase">
                     <th className="p-4">Nombre</th>
                     <th className="p-4">Teléfono</th>
                     <th className="p-4 hidden md:table-cell">Ocupación</th>
@@ -663,11 +682,11 @@ export default function Pacientes() {
                     <th className="p-4 text-center">Cita Pendiente</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 text-sm text-dark font-medium">
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800 text-sm text-dark font-medium">
                   {filtrados.map(p => {
                     const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
                     return (
-                      <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 transition-colors cursor-pointer group">
+                      <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 dark:hover:bg-background/40 transition-colors cursor-pointer group">
                         <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td>
                         <td className="p-4 text-muted">
                           {p.telefono ? (
@@ -706,10 +725,10 @@ export default function Pacientes() {
       </button>
 
       {datosPaciente.id && (
-        <div className="bg-[#E8F8F5] border border-[#A2D9CE] rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="bg-[#E8F8F5] dark:bg-emerald-900/10 border border-[#A2D9CE] dark:border-emerald-800/40 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div>
-            <h3 className="font-bold text-[#117A65] text-lg">¿El paciente necesita agendar?</h3>
-            <p className="text-sm text-[#148F77]">Ir al módulo de agenda para presupuestar procedimientos o asignar pagos a este paciente.</p>
+            <h3 className="font-bold text-[#117A65] dark:text-emerald-400 text-lg">¿El paciente necesita agendar?</h3>
+            <p className="text-sm text-[#148F77] dark:text-emerald-500/80">Ir al módulo de agenda para presupuestar procedimientos o asignar pagos a este paciente.</p>
           </div>
           <button onClick={irACrearCita} className="bg-[#117A65] hover:bg-[#0E6251] text-white px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold shadow-sm transition-colors w-full sm:w-auto shrink-0">
             <CalendarIcon size={20} /> Asignarle una Cita a {datosPaciente.nombre.split(' ')[0]}
@@ -717,10 +736,10 @@ export default function Pacientes() {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 sm:p-8 space-y-10">
 
         <section>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b dark:border-gray-800 pb-2 gap-3">
             <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
             {datosPaciente.id && (
               <button 
@@ -741,36 +760,36 @@ export default function Pacientes() {
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
-            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
+            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl font-bold" />
+            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl" />
             
             <div className="flex gap-2 w-full" title="Fecha de Nacimiento">
-              <select value={fnYear} onChange={e => handleFechaNacimiento('year', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+              <select value={fnYear} onChange={e => handleFechaNacimiento('year', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl text-dark font-medium outline-none focus:border-primary">
                 <option value="" disabled>Año</option>
                 {Array.from({length: 100}, (_, i) => new Date().getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
               </select>
-              <select value={fnMonth} onChange={e => handleFechaNacimiento('month', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+              <select value={fnMonth} onChange={e => handleFechaNacimiento('month', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl text-dark font-medium outline-none focus:border-primary">
                 <option value="" disabled>Mes</option>
                 {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => {
                    const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
                    return <option key={m} value={m}>{nombresMeses[i]}</option>
                 })}
               </select>
-              <select value={fnDay} onChange={e => handleFechaNacimiento('day', e.target.value)} className="w-1/3 p-3 bg-surface border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+              <select value={fnDay} onChange={e => handleFechaNacimiento('day', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl text-dark font-medium outline-none focus:border-primary">
                 <option value="" disabled>Día</option>
                 {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
 
-            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
-            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
-            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
-            <textarea placeholder="Notas generales" value={datosPaciente.notas} onChange={e=>setDatosPaciente({...datosPaciente, notas: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
+            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl" />
+            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl md:col-span-2" />
+            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl md:col-span-2" rows="2"></textarea>
+            <textarea placeholder="Notas generales" value={datosPaciente.notas} onChange={e=>setDatosPaciente({...datosPaciente, notas: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded-xl md:col-span-2" rows="2"></textarea>
           </div>
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-dark mb-4 border-b dark:border-gray-800 pb-2 flex justify-between items-center">
             Tratamientos Realizados en Clínica
             <button onClick={() => setModalTratamiento(true)} className="bg-primary/10 text-primary hover:bg-primary hover:text-white px-3 py-1.5 rounded-full text-sm font-bold transition-colors flex items-center gap-1"><Plus size={16}/> Agregar</button>
           </h2>
@@ -788,9 +807,9 @@ export default function Pacientes() {
       </div>
 
       {/* ================= SECCIÓN ODONTOGRAMA ================= */}
-      <section className="w-full py-6 bg-white rounded-3xl shadow-sm border border-gray-100" id="odontograma-capture">
+      <section className="w-full py-6 bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800" id="odontograma-capture">
         <div className="px-6 sm:px-8 mb-8 mt-2">
-          <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
+          <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 dark:border-gray-800 pb-2">Historial Dental (Odontograma)</h2>
           <p className="text-xs text-muted">Toca un diente para asignarle un padecimiento.</p>
         </div>
 
@@ -827,7 +846,7 @@ export default function Pacientes() {
                     <img
                       src={`/odontograma/${diente}.svg`}
                       alt={`Diente ${diente}`}
-                      className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110"
+                      className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110 dark:invert dark:opacity-80"
                       style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
                     />
                   </div>
@@ -867,7 +886,7 @@ export default function Pacientes() {
                     <img
                       src={`/odontograma/${diente}.svg`}
                       alt={`Diente ${diente}`}
-                      className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110"
+                      className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110 dark:invert dark:opacity-80"
                       style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
                     />
                   </div>
@@ -883,17 +902,17 @@ export default function Pacientes() {
 
         {dienteActivoHistorial && (
           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
-              <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
+            <div className="bg-white dark:bg-surface rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center shrink-0">
                 <span className="font-black text-lg text-dark">Diente {dienteActivoHistorial}</span>
-                <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={20} className="text-danger"/></button>
+                <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-background rounded-full transition-colors"><X size={20} className="text-danger"/></button>
               </div>
               <div className="p-2 overflow-y-auto flex-1">
                 {CONDICIONES_DENTALES.map((cond, i) => (
                   <button 
                     key={i} 
                     onClick={() => aplicarCondicionDental(cond)} 
-                    className="w-full flex items-center gap-3 p-3 hover:bg-surface rounded-xl text-left text-sm font-medium transition-colors"
+                    className="w-full flex items-center gap-3 p-3 hover:bg-surface dark:hover:bg-background rounded-xl text-left text-sm font-medium transition-colors"
                   >
                     <div className="w-5 h-5 rounded-full border-2 shadow-sm shrink-0" style={{ backgroundColor: cond.color, borderColor: cond.borde || cond.color }}></div>
                     <span className="text-dark">{cond.nombre}</span>
@@ -906,10 +925,10 @@ export default function Pacientes() {
       </section>
       
       {/* AQUI ABRIMOS LA CAJA BLANCA DE NUEVO PARA LO RESTANTE */}
-      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 sm:p-8 space-y-10">
 
         <section>
-          <label className="bg-white border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
+          <label className="bg-white dark:bg-background border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-surface transition-colors">
             <Upload className="text-muted mb-2" size={28} />
             <span className="text-sm font-bold text-muted">Subir Imágenes del Paciente</span>
             <input type="file" multiple accept="image/*" onChange={handleImagenUpload} className="hidden" />
@@ -919,7 +938,7 @@ export default function Pacientes() {
               {imagenes.map((img, i) => {
                 const imageSrc = img.es_local ? img.ruta_imagen : `https://dentalix.lat/${img.ruta_imagen}`;
                 return (
-                  <img key={i} src={imageSrc} alt="Archivo Clínico" onClick={() => setImagenEnGrande(imageSrc)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 hover:border-primary shadow-sm shrink-0" />
+                  <img key={i} src={imageSrc} alt="Archivo Clínico" onClick={() => setImagenEnGrande(imageSrc)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 dark:border-gray-800 hover:border-primary shadow-sm shrink-0" />
                 );
               })}
             </div>
@@ -927,15 +946,15 @@ export default function Pacientes() {
         </section>
 
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">Anamnesis</h2>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b dark:border-gray-800 pb-2">Anamnesis</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
             {ANAMNESIS_ITEMS.map((item, idx) => {
               const state = anamnesis[idx].estado;
-              const bgClass = state === '?' ? 'bg-gray-100 text-gray-500' : state === 'No' ? 'bg-green-100 text-green-700' : 'bg-danger/10 text-danger';
+              const bgClass = state === '?' ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' : state === 'No' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-danger/10 text-danger';
               return (
-                <div key={idx} className="flex flex-col bg-white border border-gray-100 p-2 rounded-xl shadow-sm">
+                <div key={idx} className="flex flex-col bg-white dark:bg-surface border border-gray-100 dark:border-gray-800 p-2 rounded-xl shadow-sm">
                   <div className="flex justify-between items-center gap-2"><span className="text-sm font-medium leading-tight text-dark flex-1">{item}</span><button onClick={() => handleAnamnesisClick(idx)} className={`w-10 h-8 rounded-lg font-black text-sm flex items-center justify-center shrink-0 transition-colors ${bgClass}`}>{state}</button></div>
-                  {state === 'Si' && <input type="text" placeholder="Especifique..." value={anamnesis[idx].detalle} onChange={(e) => setAnamnesis({...anamnesis, [idx]: {...anamnesis[idx], detalle: e.target.value}})} className="mt-2 w-full p-2 bg-surface border border-gray-200 rounded text-xs" />}
+                  {state === 'Si' && <input type="text" placeholder="Especifique..." value={anamnesis[idx].detalle} onChange={(e) => setAnamnesis({...anamnesis, [idx]: {...anamnesis[idx], detalle: e.target.value}})} className="mt-2 w-full p-2 bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 rounded text-xs" />}
                 </div>
               )
             })}
@@ -944,7 +963,7 @@ export default function Pacientes() {
 
         {/* --- SECCIÓN DE FIRMA DIGITAL --- */}
         <section>
-          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-dark mb-4 border-b dark:border-gray-800 pb-2 flex justify-between items-center">
             Firmar expediente
             {(firmaBase64 || canvasTieneTrazos) && (
               <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
@@ -955,11 +974,11 @@ export default function Pacientes() {
           
           <div className="flex flex-col items-center justify-center">
             {firmaBase64 && !canvasTieneTrazos ? (
-              <div className="relative border-2 border-gray-200 rounded-2xl w-full max-w-lg h-40 flex items-center justify-center bg-white shadow-sm overflow-hidden">
+              <div className="relative border-2 border-gray-200 dark:border-gray-800 rounded-2xl w-full max-w-lg h-40 flex items-center justify-center bg-white dark:bg-surface shadow-sm overflow-hidden">
                 <img src={firmaBase64} alt="Firma del paciente" className="max-h-full max-w-full object-contain" />
               </div>
             ) : (
-              <div className="bg-surface border-2 border-dashed border-gray-300 rounded-2xl overflow-hidden relative w-full max-w-lg h-40 touch-none shadow-sm">
+              <div className="bg-surface dark:bg-background border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl overflow-hidden relative w-full max-w-lg h-40 touch-none shadow-sm">
                 <canvas
                   ref={canvasRef}
                   width={500}
@@ -1000,30 +1019,30 @@ export default function Pacientes() {
       {/* Modal Tratamiento */}
       {modalTratamiento && (
         <div className="fixed inset-0 bg-dark/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-2xl shadow-xl mt-20 sm:mt-0">
+          <div className="bg-white dark:bg-surface rounded-3xl p-6 w-full max-w-2xl shadow-xl mt-20 sm:mt-0">
             <h3 className="text-xl font-bold mb-4">Agregar Tratamiento Realizado</h3>
             <div className="mb-4">
               <label className="block text-xs font-bold text-muted mb-1">Fecha del procedimiento</label>
-              <input type="date" value={tratamientoTemp.fecha} onChange={e=>setTratamientoTemp({...tratamientoTemp, fecha: e.target.value})} className="w-full p-2 bg-surface rounded border border-gray-200 outline-none focus:border-primary" />
+              <input type="date" value={tratamientoTemp.fecha} onChange={e=>setTratamientoTemp({...tratamientoTemp, fecha: e.target.value})} className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 dark:border-gray-800 outline-none focus:border-primary" />
             </div>
             
             <label className="block text-xs font-bold text-muted mb-2">Procedimiento realizado (Selecciona uno solo)</label>
             <select 
               value={tratamientoTemp.procedimientos[0] || ''} 
               onChange={e=>setTratamientoTemp({...tratamientoTemp, procedimientos: [e.target.value]})} 
-              className="w-full p-2 bg-surface rounded border border-gray-200 mb-4 h-32 text-sm outline-none focus:border-primary" 
+              className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 dark:border-gray-800 mb-4 h-32 text-sm outline-none focus:border-primary" 
               size="5"
             >
               {catalogoProcedimientos.map(p => <option key={p.id} value={p.nombre} className="p-1">{p.nombre}</option>)}
             </select>
             
             <label className="block text-xs font-bold text-muted mb-2">Dientes aplicados (Múltiple)</label>
-            <select multiple value={tratamientoTemp.dientes} onChange={e=>setTratamientoTemp({...tratamientoTemp, dientes: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface rounded border border-gray-200 mb-6 h-32 text-sm font-mono outline-none focus:border-primary" size="5">
+            <select multiple value={tratamientoTemp.dientes} onChange={e=>setTratamientoTemp({...tratamientoTemp, dientes: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 dark:border-gray-800 mb-6 h-32 text-sm font-mono outline-none focus:border-primary" size="5">
               {DIENTES_ADULTOS.map(d => <option key={d} value={d} className="p-1">Diente {d}</option>)}
             </select>
             
             <div className="flex gap-4">
-              <button onClick={() => setModalTratamiento(false)} className="flex-1 py-3 font-bold text-muted bg-surface rounded-full">Cancelar</button>
+              <button onClick={() => setModalTratamiento(false)} className="flex-1 py-3 font-bold text-muted bg-surface dark:bg-background rounded-full">Cancelar</button>
               <button onClick={guardarTratamiento} className="flex-1 py-3 font-bold text-white bg-primary rounded-full">Agregar Tratamiento</button>
             </div>
           </div>

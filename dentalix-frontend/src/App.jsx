@@ -60,7 +60,7 @@ function RouteChangeListener({ setBackAction }) {
   return null;
 }
 
-function Layout({ children, nombreClinica, backAction }) {
+function Layout({ children, nombreClinica, logoClinica, backAction }) {
   // Observador en tiempo real para que los componentes cambien cuando el sistema cambia de tema
   const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
   const currentUserId = localStorage.getItem('dentalix_usuario_id'); // Detectar usuario actual
@@ -78,8 +78,12 @@ function Layout({ children, nombreClinica, backAction }) {
       
       {/* MENÚ LATERAL ESCRITORIO (Oculto en móvil) */}
       <nav className="hidden md:flex fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 flex-col transition-transform duration-300 ease-in-out">
-        <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity">
-          {nombreClinica}
+        <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity flex justify-center items-center h-16">
+          {logoClinica ? (
+            <img src={logoClinica} alt={nombreClinica} className="max-h-full max-w-full object-contain" />
+          ) : (
+            nombreClinica
+          )}
         </Link>
         
         <NavItem to="/" icon={<Bell />} label="Hoy" />
@@ -169,6 +173,7 @@ function MobileNavItem({ to, icon, label }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [nombreClinica, setNombreClinica] = useState('Dentalix');
+  const [logoClinica, setLogoClinica] = useState(null);
   
   // Estado que controla la acción del botón Atrás global
   const [backAction, setBackAction] = useState(null);
@@ -200,37 +205,36 @@ export default function App() {
     
     const aplicarTema = () => {
       const userPref = localStorage.getItem('dentalix_dark');
-      // Si el usuario guardó "true", o si no ha tocado el ajuste pero su celular está en modo oscuro
       if (userPref === 'true' || (userPref === null && systemDarkQuery.matches)) {
         document.documentElement.classList.add('dark');
-        document.documentElement.style.colorScheme = 'dark'; // Esto bloquea los grises invasivos de iOS
+        document.documentElement.style.colorScheme = 'dark';
       } else {
         document.documentElement.classList.remove('dark');
         document.documentElement.style.colorScheme = 'light';
       }
     };
 
-    aplicarTema(); // Correr la primera vez que abre la app
+    aplicarTema();
 
-    // Si el usuario baja el centro de control de su iPhone y cambia a modo nocturno en vivo:
     const listenerModoOscuro = () => {
       if (localStorage.getItem('dentalix_dark') === null) {
         aplicarTema();
       }
     };
     systemDarkQuery.addEventListener('change', listenerModoOscuro);
-    // -------------------------------------------------------------------------
 
     if (localStorage.getItem('dentalix_auth') === 'true') setIsAuthenticated(true);
 
     const colorCache = localStorage.getItem('dentalix_color_primario');
     const nombreCache = localStorage.getItem('dentalix_nombre_app');
+    const logoCache = localStorage.getItem('dentalix_logo');
     
     if (colorCache) {
       document.documentElement.style.setProperty('--color-primary', colorCache);
       document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colorCache));
     }
     if (nombreCache) setNombreClinica(nombreCache);
+    if (logoCache) setLogoClinica(logoCache);
 
     fetch('https://dentalix.lat/api.php?accion=ajustes')
       .then(res => res.json())
@@ -238,6 +242,10 @@ export default function App() {
         if (data.nombre_app) {
           setNombreClinica(data.nombre_app);
           localStorage.setItem('dentalix_nombre_app', data.nombre_app);
+        }
+        if (data.logo) {
+          setLogoClinica(data.logo);
+          localStorage.setItem('dentalix_logo', data.logo);
         }
         if (data.colores_tema) {
           const colores = JSON.parse(data.colores_tema);
@@ -269,7 +277,7 @@ export default function App() {
     <AppContext.Provider value={{ setBackAction }}>
       <Router>
         <RouteChangeListener setBackAction={setBackAction} />
-        <Layout nombreClinica={nombreClinica} backAction={backAction}>
+        <Layout nombreClinica={nombreClinica} logoClinica={logoClinica} backAction={backAction}>
           <Routes>
             <Route path="/" element={<Recordatorios />} />
             <Route path="/calendario" element={<Calendario />} />
@@ -279,7 +287,7 @@ export default function App() {
             <Route path="/procedimientos" element={<Procedimientos />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/consentimientos" element={<Consentimientos />} />
-            <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} />} />
+            <Route path="/ajustes" element={<Ajustes onLogout={handleLogout} onUpdateName={setNombreClinica} onUpdateLogo={setLogoClinica} />} />
           </Routes>
         </Layout>
       </Router>

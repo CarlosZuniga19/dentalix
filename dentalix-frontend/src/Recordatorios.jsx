@@ -189,15 +189,15 @@ export default function Recordatorios() {
               <div 
                 key={i} 
                 onClick={() => irAPaciente(recall)}
-                className="bg-white min-w-[260px] max-w-[280px] p-4 rounded-3xl border-2 border-primary/10 shadow-sm hover:border-primary/40 cursor-pointer flex-shrink-0 transition-all group"
+                className="bg-white dark:bg-surface min-w-[260px] max-w-[280px] p-4 rounded-3xl border-2 border-primary/10 dark:border-primary/20 shadow-sm hover:border-primary/40 dark:hover:border-primary/50 cursor-pointer flex-shrink-0 transition-all group"
               >
                 <div className="flex items-start gap-3">
-                  <div className={`p-2.5 rounded-xl shrink-0 ${recall.tipo === 'limpieza' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                  <div className={`p-2.5 rounded-xl shrink-0 ${recall.tipo === 'limpieza' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'}`}>
                     {recall.tipo === 'limpieza' ? <Sparkles size={20}/> : <Stethoscope size={20}/>}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm text-dark font-medium leading-tight mb-2">
-                      El paciente <strong className="font-black">{recall.nombre}</strong> ya necesita una <strong className={recall.tipo === 'limpieza' ? 'text-blue-600' : 'text-purple-600'}>{recall.tipo}</strong>.
+                      El paciente <strong className="font-black">{recall.nombre}</strong> ya necesita una <strong className={recall.tipo === 'limpieza' ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'}>{recall.tipo}</strong>.
                     </p>
                     <span className="text-[10px] text-muted uppercase font-bold flex items-center gap-1 group-hover:text-primary transition-colors">
                       Abrir expediente <ChevronRight size={12} />
@@ -218,14 +218,14 @@ export default function Recordatorios() {
           </h1>
           <p className="text-muted text-sm capitalize mt-1">{fechaHoyFormateada}</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-full border border-gray-200 shadow-sm text-sm font-bold text-dark flex items-center gap-2">
+        <div className="bg-white dark:bg-surface px-4 py-2 rounded-full border border-gray-200 dark:border-gray-800 shadow-sm text-sm font-bold text-dark flex items-center gap-2">
           Citas programadas hoy: <span className="bg-primary text-white px-2 py-0.5 rounded-full">{citasHoy.length}</span>
         </div>
       </div>
 
       <div className="space-y-4">
         {cargando ? (
-          <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm text-center font-medium text-muted">
+          <div className="bg-white dark:bg-surface p-8 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm text-center font-medium text-muted">
             Buscando citas de hoy...
           </div>
         ) : citasHoy.length > 0 ? (
@@ -233,7 +233,7 @@ export default function Recordatorios() {
             <div 
               key={cita.id_cita} 
               onClick={() => navigate('/citas', { state: { citaIdParaEditar: cita.id_cita } })}
-              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col transition-all hover:shadow-md hover:border-primary/30 cursor-pointer"
+              className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col transition-all hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 cursor-pointer"
             >
               
               <div className="p-4 md:p-5 flex justify-between items-center gap-4">
@@ -243,7 +243,7 @@ export default function Recordatorios() {
                     {cita.hora.substring(0, 5)} hrs
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="bg-surface p-2.5 rounded-full mt-0.5 text-muted">
+                    <div className="bg-surface dark:bg-background p-2.5 rounded-full mt-0.5 text-muted">
                       <User size={18} />
                     </div>
                     <div>
@@ -266,12 +266,12 @@ export default function Recordatorios() {
                 </div>
 
                 <div className="flex flex-col items-end justify-center gap-2 shrink-0">
-                  <span className="bg-surface border border-gray-200 text-xs font-bold px-4 py-2 rounded-full uppercase text-muted shadow-sm text-center w-full min-w-[120px]">
+                  <span className="bg-surface dark:bg-background border border-gray-200 dark:border-gray-800 text-xs font-bold px-4 py-2 rounded-full uppercase text-muted shadow-sm text-center w-full min-w-[120px]">
                     {cita.estado}
                   </span>
                   <button 
                     onClick={(e) => { e.stopPropagation(); toggleEdicionNota(cita.id_cita); }}
-                    className="bg-orange-50 border border-orange-200 hover:bg-orange-100 text-orange-600 text-xs font-bold px-4 py-2 rounded-full shadow-sm transition-colors flex items-center justify-center gap-1.5 w-full min-w-[120px]"
+                    className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/50 hover:bg-orange-100 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 text-xs font-bold px-4 py-2 rounded-full shadow-sm transition-colors flex items-center justify-center gap-1.5 w-full min-w-[120px]"
                   >
                     <Bell size={14} />
                     {cita.recordatorio ? 'Editar nota' : 'Agregar nota'}
@@ -280,9 +280,9 @@ export default function Recordatorios() {
               </div>
 
               {cita.recordatorio && !editandoNotas[cita.id_cita] && (
-                <div className="bg-[#FFF8F3] border-t border-orange-100 p-4 md:px-5 flex items-start gap-3">
+                <div className="bg-[#FFF8F3] dark:bg-orange-900/10 border-t border-orange-100 dark:border-orange-900/30 p-4 md:px-5 flex items-start gap-3">
                   <Bell size={20} className="text-orange-500 shrink-0 mt-0.5" />
-                  <p className="text-orange-800 font-medium text-sm leading-relaxed whitespace-pre-wrap">
+                  <p className="text-orange-800 dark:text-orange-400 font-medium text-sm leading-relaxed whitespace-pre-wrap">
                     {cita.recordatorio}
                   </p>
                 </div>
@@ -290,7 +290,7 @@ export default function Recordatorios() {
 
               {editandoNotas[cita.id_cita] && (
                 <div 
-                  className="p-4 md:p-5 bg-surface/50 border-t border-gray-100 flex flex-col cursor-default"
+                  className="p-4 md:p-5 bg-surface/50 dark:bg-background/50 border-t border-gray-100 dark:border-gray-800 flex flex-col cursor-default"
                   onClick={(e) => e.stopPropagation()} 
                 >
                   <label className="text-sm font-bold text-dark mb-2 flex items-center gap-2">
@@ -300,13 +300,13 @@ export default function Recordatorios() {
                     value={cita.recordatorio || ''} 
                     onChange={(e) => handleCambioTexto(cita.id_cita, e.target.value)}
                     placeholder="Ej: Paciente debe $200 de la cita anterior, recordar firmar responsiva..."
-                    className="w-full flex-1 min-h-[80px] p-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/50 text-dark resize-none transition-colors"
+                    className="w-full flex-1 min-h-[80px] p-4 bg-white dark:bg-surface border border-gray-200 dark:border-gray-800 rounded-2xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400/50 text-dark resize-none transition-colors"
                   ></textarea>
                   
                   <div className="mt-3 flex justify-end gap-2">
                     <button 
                       onClick={(e) => { e.stopPropagation(); toggleEdicionNota(cita.id_cita); }}
-                      className="px-5 py-2 rounded-full font-bold text-muted hover:bg-gray-200 transition-colors text-sm"
+                      className="px-5 py-2 rounded-full font-bold text-muted hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-sm"
                     >
                       Cancelar
                     </button>
@@ -331,7 +331,7 @@ export default function Recordatorios() {
                 </div>
               )}
 
-              <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-background/50 flex justify-end">
                 <button
                   onClick={(e) => { e.stopPropagation(); abrirWhatsAppRecordatorio(cita); }}
                   className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-5 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
@@ -344,8 +344,8 @@ export default function Recordatorios() {
             </div>
           ))
         ) : (
-          <div className="bg-white p-12 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-surface rounded-full flex items-center justify-center mb-4">
+          <div className="bg-white dark:bg-surface p-12 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 bg-surface dark:bg-background rounded-full flex items-center justify-center mb-4">
               <Check size={32} className="text-muted" />
             </div>
             <h2 className="text-xl font-bold text-dark mb-2">Día libre de citas</h2>

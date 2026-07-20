@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Save, LogOut, KeyRound, Moon, Sun } from 'lucide-react';
+import { Save, LogOut, KeyRound, Moon, Sun, Upload, Image as ImageIcon } from 'lucide-react';
 
-export default function Ajustes({ onLogout, onUpdateName }) {
+export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
   const [nombreApp, setNombreApp] = useState('Dentalix');
   const [colorPrimary, setColorPrimary] = useState('#8B5CF6');
+  const [logoBase64, setLogoBase64] = useState('');
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -27,6 +28,7 @@ export default function Ajustes({ onLogout, onUpdateName }) {
       .then(res => res.json())
       .then(data => {
         if(data.nombre_app) setNombreApp(data.nombre_app);
+        if(data.logo) setLogoBase64(data.logo);
         if(data.colores_tema) {
           const colores = JSON.parse(data.colores_tema);
           setColorPrimary(colores.primary);
@@ -51,22 +53,64 @@ export default function Ajustes({ onLogout, onUpdateName }) {
     }
   };
 
+  // Función para capturar, redimensionar y convertir el logo a Base64
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 400; // Ancho máximo para evitar saturar la BD y los PDFs
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const dataUrl = canvas.toDataURL('image/png');
+        setLogoBase64(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const guardarAjustesGenerales = () => {
+    // Almacenamos 'logo' en el payload para enviarlo al API
     fetch(`${API_URL}?accion=guardar_ajustes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre_app: nombreApp, color_primary: colorPrimary })
+      body: JSON.stringify({ nombre_app: nombreApp, color_primary: colorPrimary, logo: logoBase64 })
     })
     .then(res => res.json())
     .then(data => {
       document.documentElement.style.setProperty('--color-primary', colorPrimary);
       document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colorPrimary));
       
-      // Guardar en caché para evitar el destello morado al recargar
+      // Guardar en caché para evitar el destello al recargar
       localStorage.setItem('dentalix_color_primario', colorPrimary);
       localStorage.setItem('dentalix_nombre_app', nombreApp);
+      if (logoBase64) localStorage.setItem('dentalix_logo', logoBase64);
       
       if(onUpdateName) onUpdateName(nombreApp);
+      if(onUpdateLogo) onUpdateLogo(logoBase64);
 
       setMensaje({ texto: 'Ajustes guardados correctamente', tipo: 'success' });
       setTimeout(() => setMensaje({ texto: '', tipo: '' }), 3000);
@@ -126,6 +170,32 @@ export default function Ajustes({ onLogout, onUpdateName }) {
               onChange={e => setNombreApp(e.target.value)}
               className="w-full p-3.5 bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark"
             />
+          </div>
+
+          {/* NUEVA SECCIÓN DE LOGO */}
+          <div className="bg-surface border border-gray-200 p-4 rounded-2xl">
+            <label className="block text-sm font-medium text-dark mb-2">Logo de la Clínica (Aparecerá en el menú y los PDF)</label>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-24 h-24 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                {logoBase64 ? (
+                  <img src={logoBase64} alt="Logo Previsto" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <ImageIcon size={32} className="text-gray-300" />
+                )}
+              </div>
+              <div className="flex-1 w-full">
+                <label className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors w-full">
+                  <Upload className="text-muted mb-1" size={20} />
+                  <span className="text-xs font-bold text-muted text-center">Subir Nuevo Logo (PNG o JPG)</span>
+                  <input type="file" accept="image/png, image/jpeg, image/jpg" onChange={handleLogoUpload} className="hidden" />
+                </label>
+                {logoBase64 && (
+                  <button onClick={() => setLogoBase64('')} className="text-xs text-danger hover:underline mt-2 font-bold w-full text-center sm:text-left">
+                    Eliminar logo actual
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div>
