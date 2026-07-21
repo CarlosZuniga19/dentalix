@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Save, LogOut, KeyRound, Moon, Sun, Upload, Image as ImageIcon } from 'lucide-react';
+import { Save, LogOut, KeyRound, Moon, Sun, Upload, Image as ImageIcon, Stethoscope, PenTool } from 'lucide-react';
 
 export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
   const [nombreApp, setNombreApp] = useState('Dentalix');
   const [colorPrimary, setColorPrimary] = useState('#8B5CF6');
   const [logoBase64, setLogoBase64] = useState('');
+  
+  // --- NUEVOS ESTADOS LEGALES ---
+  const [cedula, setCedula] = useState('');
+  const [universidad, setUniversidad] = useState('');
+  const [firmaDoctor, setFirmaDoctor] = useState('');
+
   const [nuevaPassword, setNuevaPassword] = useState('');
   const [mensaje, setMensaje] = useState({ texto: '', tipo: '' });
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -33,6 +39,10 @@ export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
           const colores = JSON.parse(data.colores_tema);
           setColorPrimary(colores.primary);
         }
+        // Cargar datos legales
+        if(data.cedula) setCedula(data.cedula);
+        if(data.universidad) setUniversidad(data.universidad);
+        if(data.firma_doctor) setFirmaDoctor(data.firma_doctor);
       });
 
     setIsDarkMode(
@@ -53,61 +63,67 @@ export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
     }
   };
 
-  // Función para capturar, redimensionar y convertir el logo a Base64
-  const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
+  const procesarImagenBase64 = (file, setter, maxWidth = 400, maxHeight = 400) => {
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; // Ancho máximo para evitar saturar la BD y los PDFs
-        const MAX_HEIGHT = 400;
         let width = img.width;
         let height = img.height;
 
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > maxWidth) {
+            height *= maxWidth / width;
+            width = maxWidth;
           }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
+          if (height > maxHeight) {
+            width *= maxHeight / height;
+            height = maxHeight;
           }
         }
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        
-        const dataUrl = canvas.toDataURL('image/png');
-        setLogoBase64(dataUrl);
+        setter(canvas.toDataURL('image/png'));
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   };
 
+  const handleLogoUpload = (e) => procesarImagenBase64(e.target.files[0], setLogoBase64);
+  const handleFirmaUpload = (e) => procesarImagenBase64(e.target.files[0], setFirmaDoctor);
+
   const guardarAjustesGenerales = () => {
-    // Almacenamos 'logo' en el payload para enviarlo al API
     fetch(`${API_URL}?accion=guardar_ajustes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre_app: nombreApp, color_primary: colorPrimary, logo: logoBase64 })
+      body: JSON.stringify({ 
+        nombre_app: nombreApp, 
+        color_primary: colorPrimary, 
+        logo: logoBase64,
+        cedula: cedula,
+        universidad: universidad,
+        firma_doctor: firmaDoctor
+      })
     })
     .then(res => res.json())
     .then(data => {
       document.documentElement.style.setProperty('--color-primary', colorPrimary);
       document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colorPrimary));
       
-      // Guardar en caché para evitar el destello al recargar
       localStorage.setItem('dentalix_color_primario', colorPrimary);
       localStorage.setItem('dentalix_nombre_app', nombreApp);
       if (logoBase64) localStorage.setItem('dentalix_logo', logoBase64);
+      
+      // Guardar en caché para acceso rápido desde el módulo de Recetas
+      localStorage.setItem('dentalix_cedula', cedula);
+      localStorage.setItem('dentalix_universidad', universidad);
+      if (firmaDoctor) localStorage.setItem('dentalix_firma_doctor', firmaDoctor);
       
       if(onUpdateName) onUpdateName(nombreApp);
       if(onUpdateLogo) onUpdateLogo(logoBase64);
@@ -142,6 +158,7 @@ export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
         </div>
       )}
 
+      {/* --- SECCIÓN 1: APARIENCIA --- */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6">
         <h2 className="text-lg font-bold text-dark mb-4">Apariencia y Personalización</h2>
         
@@ -172,7 +189,6 @@ export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
             />
           </div>
 
-          {/* NUEVA SECCIÓN DE LOGO */}
           <div className="bg-surface border border-gray-200 p-4 rounded-2xl">
             <label className="block text-sm font-medium text-dark mb-2">Logo de la Clínica (Aparecerá en el menú y los PDF)</label>
             <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -216,15 +232,75 @@ export default function Ajustes({ onLogout, onUpdateName, onUpdateLogo }) {
             </div>
           </div>
         </div>
+      </div>
 
+      {/* --- SECCIÓN 2: DATOS MÉDICOS --- */}
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Stethoscope className="text-primary" size={22} />
+          <h2 className="text-lg font-bold text-dark">Datos Médicos y Legales (Para Recetas)</h2>
+        </div>
+        
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1 ml-2">Cédula Profesional</label>
+              <input
+                type="text"
+                placeholder="Ej. 12345678"
+                value={cedula}
+                onChange={e => setCedula(e.target.value)}
+                className="w-full p-3.5 bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1 ml-2">Universidad de Egreso</label>
+              <input
+                type="text"
+                placeholder="Ej. UNAM"
+                value={universidad}
+                onChange={e => setUniversidad(e.target.value)}
+                className="w-full p-3.5 bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark"
+              />
+            </div>
+          </div>
+
+          <div className="bg-surface border border-gray-200 p-4 rounded-2xl mt-2">
+            <label className="block text-sm font-medium text-dark mb-2">Firma Digital del Titular</label>
+            <p className="text-xs text-muted mb-3">Se inyectará automáticamente en las recetas generadas en PDF. Sube una foto clara (preferiblemente sin fondo o en papel blanco).</p>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-32 h-20 bg-white border border-gray-200 rounded-xl flex items-center justify-center overflow-hidden shrink-0 shadow-sm px-2">
+                {firmaDoctor ? (
+                  <img src={firmaDoctor} alt="Firma Doctor" className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <PenTool size={28} className="text-gray-300" />
+                )}
+              </div>
+              <div className="flex-1 w-full">
+                <label className="bg-white border-2 border-dashed border-gray-300 rounded-xl p-3 flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 transition-colors w-full">
+                  <Upload className="text-muted mb-1" size={20} />
+                  <span className="text-xs font-bold text-muted text-center">Subir Archivo de Firma</span>
+                  <input type="file" accept="image/png, image/jpeg, image/jpg" onChange={handleFirmaUpload} className="hidden" />
+                </label>
+                {firmaDoctor && (
+                  <button onClick={() => setFirmaDoctor('')} className="text-xs text-danger hover:underline mt-2 font-bold w-full text-center sm:text-left">
+                    Eliminar firma actual
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <button
           onClick={guardarAjustesGenerales}
           className="bg-primary hover:bg-primary-hover text-white px-6 py-3 rounded-full flex items-center justify-center gap-2 transition-colors font-bold w-full md:w-auto shadow-sm"
         >
-          <Save size={20} /> Guardar Cambios
+          <Save size={20} /> Guardar Ajustes
         </button>
       </div>
 
+      {/* --- SECCIÓN 3: SEGURIDAD --- */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6">
         <h2 className="text-lg font-bold text-dark mb-4">Seguridad</h2>
         <div className="mb-6">

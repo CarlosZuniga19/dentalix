@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, X, Check, FileDown, MessageCircle, Search, Bell, Edit2 } from 'lucide-react';
+import { Plus, X, Check, FileDown, MessageCircle, Search, Bell, Edit2, Pill } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -283,6 +283,15 @@ export default function Citas() {
       });
 
     setVista('nueva_cita');
+  };
+
+  // NUEVO BOTÓN: Ir a módulo de recetas con el paciente actual
+  const irARecetas = () => {
+    if (!datosPaciente.nombre) {
+      alert("Selecciona o crea un paciente primero para recetarle.");
+      return;
+    }
+    navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
   // ============================================================================
@@ -675,7 +684,23 @@ export default function Citas() {
       </div>
 
       <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border-gray-100 p-6 sm:p-8 space-y-10">
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        
+        {/* === SECCIÓN BOTONERA SUPERIOR (Solo si hay paciente) === */}
+        {datosPaciente.nombre && (
+          <section className="flex flex-col sm:flex-row gap-3 justify-end border-b pb-4">
+            <button 
+              onClick={irARecetas}
+              className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors w-full sm:w-auto shrink-0"
+            >
+              <Pill size={16} /> Recetar a este paciente
+            </button>
+            <button onClick={generarPresupuestoPDF} className="bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 px-5 py-2.5 rounded-full text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors w-full sm:w-auto shrink-0">
+              <FileDown size={16}/> Cotizar / Imprimir PDF
+            </button>
+          </section>
+        )}
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border-gray-200 rounded-full text-dark" /></div>
           
           {/* NUEVOS DROPDOWNS PARA LA HORA (8 AM a 20 PM) */}
@@ -804,29 +829,27 @@ export default function Citas() {
           )}
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-[#E8F8F5] dark:bg-emerald-900/10 border border-[#A2D9CE] dark:border-emerald-800/40 rounded-2xl flex flex-col justify-between">
+        <section className="grid grid-cols-1 gap-4">
+          <div className="p-4 bg-[#E8F8F5] dark:bg-emerald-900/10 border border-[#A2D9CE] dark:border-emerald-800/40 rounded-2xl flex flex-col justify-between items-start">
             <span className="text-xs font-bold text-[#117A65] dark:text-emerald-400 flex items-center gap-1"><MessageCircle size={16}/> CONFIRMACIÓN WHATSAPP</span>
             <p className="text-xs text-[#148F77] dark:text-emerald-500/80 italic my-2">Enviaremos un mensaje inteligente calculando si la cita es hoy, mañana o después.</p>
             <button 
               type="button"
               onClick={(e) => abrirWhatsAppRecordatorio(e, datosPaciente.telefono, datosPaciente.nombre, fecha, `${horaCombo}:${minutoCombo}`)}
-              className="bg-[#25D366] hover:bg-[#20bd5a] text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors"
+              className="bg-[#25D366] hover:bg-[#20bd5a] text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors w-full sm:w-auto"
             >
               <MessageCircle size={16}/> Enviar Confirmación WA
             </button>
           </div>
+          
+          {/* --- SECCIÓN DE FIRMA DIGITAL PARA PRESUPUESTO MOVIDA AL FINAL --- */}
           <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/40 rounded-2xl flex flex-col justify-between">
-            <span className="text-xs font-bold text-blue-800 dark:text-blue-400">DOCUMENTO DE COTIZACIÓN</span>
-            <p className="text-xs text-muted my-2">Desglose de costos calcado al diseño solicitado.</p>
-            <button onClick={generarPresupuestoPDF} className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-full font-bold text-xs shadow-sm flex items-center justify-center gap-2 transition-colors">
-              <FileDown size={16}/> Generar Presupuesto PDF
-            </button>
+            <span className="text-xs font-bold text-blue-800 dark:text-blue-400">FIRMA DEL PACIENTE PARA COTIZACIÓN</span>
+            <p className="text-xs text-muted my-2">Si deseas imprimir el presupuesto ya firmado, pídele al paciente que dibuje su firma aquí abajo.</p>
 
-            {/* --- SECCIÓN DE FIRMA DIGITAL PARA PRESUPUESTO --- */}
-            <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-800/40">
+            <div className="mt-2 border-t border-blue-200 dark:border-blue-800/40 pt-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-bold text-blue-800 dark:text-blue-400">Firma del paciente</span>
+                <span className="text-xs font-bold text-blue-800 dark:text-blue-400">Área de firma</span>
                 {(firmaBase64 || canvasTieneTrazos) && (
                   <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
                     Borrar Firma
@@ -853,7 +876,7 @@ export default function Citas() {
                     />
                     {!canvasTieneTrazos && (
                       <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-blue-800/40 dark:text-blue-400/30 font-medium text-xs px-2 text-center">
-                        Pide al paciente que firme aquí para anexarlo al PDF
+                        Dibuja aquí con el dedo o el mouse
                       </div>
                     )}
                   </div>

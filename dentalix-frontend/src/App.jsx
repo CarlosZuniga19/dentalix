@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText } from 'lucide-react';
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -12,6 +12,7 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 import Reportes from './Reportes';
 import Consentimientos from './Consentimientos';
+import Recetas from './Recetas'; // <-- IMPORTADO EL NUEVO MÓDULO
 
 // =========================================================================
 // CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
@@ -91,6 +92,10 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
         <NavItem to="/agenda" icon={<Clock />} label="Agenda" />
         <NavItem to="/citas" icon={<ClipboardList />} label="Citas" />
         <NavItem to="/pacientes" icon={<Users />} label="Pacientes" />
+        
+        {/* NUEVA PESTAÑA RECETAS (Antes de procedimientos) */}
+        <NavItem to="/recetas" icon={<Pill />} label="Recetas" />
+        
         <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" />
         <NavItem to="/reportes" icon={<BarChart3 />} label="Reportes" />
         
@@ -136,6 +141,10 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
             <MobileNavItem to="/agenda" icon={<Clock size={22} />} label="Agenda" />
             <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
             <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
+            
+            {/* NUEVA PESTAÑA RECETAS EN MÓVIL */}
+            <MobileNavItem to="/recetas" icon={<Pill size={22} />} label="Recetas" />
+            
             <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
             <MobileNavItem to="/reportes" icon={<BarChart3 size={22} />} label="Reportes" />
             
@@ -253,6 +262,10 @@ export default function App() {
           document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colores.primary));
           localStorage.setItem('dentalix_color_primario', colores.primary);
         }
+        // NUEVO: CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
+        if(data.cedula) localStorage.setItem('dentalix_cedula', data.cedula);
+        if(data.universidad) localStorage.setItem('dentalix_universidad', data.universidad);
+        if(data.firma_doctor) localStorage.setItem('dentalix_firma_doctor', data.firma_doctor);
       })
       .catch(err => console.error("Error al cargar ajustes globales:", err));
 
@@ -284,6 +297,7 @@ export default function App() {
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/citas" element={<Citas />} />
             <Route path="/pacientes" element={<Pacientes />} />
+            <Route path="/recetas" element={<Recetas />} />  {/* <-- RUTA NUEVA */}
             <Route path="/procedimientos" element={<Procedimientos />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/consentimientos" element={<Consentimientos />} />

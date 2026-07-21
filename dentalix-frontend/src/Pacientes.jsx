@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2 } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
 import { useAppContext } from './App';
 
 // --- ARREGLOS DE DATOS CLÍNICOS EXACTOS ---
@@ -363,6 +362,11 @@ export default function Pacientes() {
 
   const irACrearCita = () => {
     navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
+  };
+
+  // NUEVA FUNCION: Botón rápido a Recetas
+  const irARecetas = () => {
+    navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
   // --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO ---
@@ -742,21 +746,30 @@ export default function Pacientes() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
             <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
             {datosPaciente.id && (
-              <button 
-                onClick={generarExpedientePDF} 
-                disabled={generandoPDF}
-                className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0 ${
-                  generandoPDF 
-                    ? 'bg-gray-100 text-muted cursor-wait' 
-                    : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
-                }`}
-              >
-                {generandoPDF ? (
-                  <><Loader2 size={16} className="animate-spin" /> Generando PDF...</>
-                ) : (
-                  <><Printer size={16}/> Imprimir PDF</>
-                )}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                {/* BOTÓN NUEVO DE RECETAS */}
+                <button 
+                  onClick={irARecetas}
+                  className="px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white"
+                >
+                  <Pill size={16} /> Recetar
+                </button>
+                <button 
+                  onClick={generarExpedientePDF} 
+                  disabled={generandoPDF}
+                  className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0 ${
+                    generandoPDF 
+                      ? 'bg-gray-100 text-muted cursor-wait' 
+                      : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                  }`}
+                >
+                  {generandoPDF ? (
+                    <><Loader2 size={16} className="animate-spin" /> Generando PDF...</>
+                  ) : (
+                    <><Printer size={16}/> Imprimir PDF</>
+                  )}
+                </button>
+              </div>
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
