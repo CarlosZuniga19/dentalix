@@ -350,7 +350,7 @@ export default function App() {
           document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colores.primary));
           localStorage.setItem('dentalix_color_primario', colores.primary);
         }
-        // NUEVO: CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
+        // NUEVO:  CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
         if(data.cedula) localStorage.setItem('dentalix_cedula', data.cedula);
         if(data.universidad) localStorage.setItem('dentalix_universidad', data.universidad);
         if(data.firma_doctor) localStorage.setItem('dentalix_firma_doctor', data.firma_doctor);
