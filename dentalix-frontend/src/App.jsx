@@ -53,23 +53,21 @@ window.fetch = async function (...args) {
 // =========================================================================
 
 // =========================================================================
-// NUEVO COMPONENTE: DETECTOR DE ACTUALIZACIONES (PWA)
+// NUEVO COMPONENTE: DETECTOR DE ACTUALIZACIONES (PWA) MÁS AGRESIVO
 // =========================================================================
 function UpdatePrompt() {
   const [necesitaActualizar, setNecesitaActualizar] = useState(false);
   const [workerEsperando, setWorkerEsperando] = useState(null);
+  const location = useLocation(); // Enganche a los cambios de ruta
 
   useEffect(() => {
-    // Si el navegador no soporta Service Workers (PWA), ignorar.
     if (!('serviceWorker' in navigator)) return;
 
     let recargando = false;
     
-    // Escuchar cuando el nuevo Service Worker toma el control exitosamente
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!recargando) {
         recargando = true;
-        // Esta línea es el equivalente exacto a Ctrl+Shift+R o a matar/abrir la app
         window.location.reload(); 
       }
     });
@@ -77,18 +75,15 @@ function UpdatePrompt() {
     const revisarActualizaciones = async () => {
       const registro = await navigator.serviceWorker.ready;
 
-      // Caso 1: Ya se descargó una actualización en el fondo y está esperando
       if (registro.waiting) {
         setWorkerEsperando(registro.waiting);
         setNecesitaActualizar(true);
       }
 
-      // Caso 2: Detectamos en tiempo real que se está descargando una actualización
       registro.addEventListener('updatefound', () => {
         const nuevoWorker = registro.installing;
         if (nuevoWorker) {
           nuevoWorker.addEventListener('statechange', () => {
-            // Cuando termina de descargar y está listo para instalarse
             if (nuevoWorker.state === 'installed' && navigator.serviceWorker.controller) {
               setWorkerEsperando(nuevoWorker);
               setNecesitaActualizar(true);
@@ -100,8 +95,7 @@ function UpdatePrompt() {
 
     revisarActualizaciones();
 
-    // Hacemos que la app pregunte al servidor silenciosamente cada 5 minutos
-    // por si el usuario deja el programa abierto todo el día en la PC
+    // Revisor temporal base (cada 5 min) por si dejan el celular prendido sin tocar nada
     const intervalo = setInterval(() => {
       navigator.serviceWorker.ready.then(reg => reg.update());
     }, 5 * 60 * 1000);
@@ -109,17 +103,24 @@ function UpdatePrompt() {
     return () => clearInterval(intervalo);
   }, []);
 
+  // EL HACK AGRESIVO: Cada vez que el usuario cambia de pestaña/ruta, 
+  // obligamos silenciosamente al Service Worker a buscar actualizaciones en GitHub.
+  useEffect(() => {
+    if ('serviceWorker' in navigator && !necesitaActualizar) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.update().catch(err => console.log("Búsqueda silenciosa falló (probablemente sin internet)", err));
+      });
+    }
+  }, [location.pathname, necesitaActualizar]);
+
   const aplicarActualizacion = () => {
     if (workerEsperando) {
-      // Mandar la orden de destruir el caché viejo e inyectar el nuevo
       workerEsperando.postMessage({ type: 'SKIP_WAITING' });
     } else {
-      // Fallback seguro
       window.location.reload();
     }
   };
 
-  // Si no hay actualizaciones, este componente es un fantasma (no renderiza nada)
   if (!necesitaActualizar) return null;
 
   return (
