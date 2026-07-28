@@ -58,6 +58,7 @@ window.fetch = async function (...args) {
 function UpdatePrompt() {
   const { backAction } = useAppContext(); // Detecta si estamos en un formulario
   const [workerEsperando, setWorkerEsperando] = useState(null);
+  const [autoActualizando, setAutoActualizando] = useState(false); // NUEVO ESTADO VISUAL
   const location = useLocation(); 
 
   useEffect(() => {
@@ -111,21 +112,43 @@ function UpdatePrompt() {
     }
   }, [location.pathname, workerEsperando]);
 
-  // EL CEREBRO: Aplica la actualización de inmediato si el usuario NO está editando algo
+  // EL CEREBRO: Aplica la actualización con una micro-pausa visual
   useEffect(() => {
     if (workerEsperando && !backAction) {
-      workerEsperando.postMessage({ type: 'SKIP_WAITING' });
+      // En lugar de ser un fantasma, mostramos que estamos instalando la mejora
+      setAutoActualizando(true);
+      setTimeout(() => {
+        workerEsperando.postMessage({ type: 'SKIP_WAITING' });
+      }, 1500); // Pantalla visible por 1.5 segundos
     }
   }, [workerEsperando, backAction]);
 
-  // Si no hay worker, o si se auto-actualizó silenciosamente, no renderiza nada
-  if (!workerEsperando || !backAction) return null;
+  // PANTALLA DE CARGA DEL AUTO-ACTUALIZADOR SILENCIOSO
+  if (autoActualizando) {
+    return (
+      <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+        <div className="bg-surface p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col items-center gap-4 border border-primary/20 text-center animate-in zoom-in-95 duration-300">
+          <RefreshCw className="text-primary animate-spin" size={40} />
+          <div>
+            <h3 className="text-dark font-black text-lg mb-1">Instalando mejora...</h3>
+            <p className="text-muted text-sm font-medium">Actualizando el sistema dental</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay worker, no renderiza nada
+  if (!workerEsperando) return null;
 
   // Solo sale el botón si el doctor está llenando un formulario para evitar que pierda sus datos
   return (
     <div className="fixed top-6 left-0 w-full flex justify-center z-[9999]">
       <button 
-        onClick={() => workerEsperando.postMessage({ type: 'SKIP_WAITING' })}
+        onClick={() => {
+          setAutoActualizando(true);
+          setTimeout(() => workerEsperando.postMessage({ type: 'SKIP_WAITING' }), 800);
+        }}
         className="bg-red-600 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_rgba(220,38,38,0.6)] font-black flex items-center gap-2 hover:scale-105 active:scale-95 transition-transform animate-bounce border-2 border-white"
       >
         <RefreshCw className="animate-spin-slow" size={20} />
