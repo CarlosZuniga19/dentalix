@@ -15,7 +15,7 @@ import Consentimientos from './Consentimientos';
 import Recetas from './Recetas'; // <-- IMPORTADO EL NUEVO MÓDULO
 
 // =========================================================================
-// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás" y Auto-Updater    
+// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás"    
 // =========================================================================
 export const AppContext = createContext();
 export const useAppContext = () => useContext(AppContext);
@@ -53,20 +53,18 @@ window.fetch = async function (...args) {
 // =========================================================================
 
 // =========================================================================
-// NUEVO COMPONENTE: AUTO-ACTUALIZADOR INTELIGENTE (PWA)
+// NUEVO COMPONENTE: DETECTOR DE ACTUALIZACIONES (PWA) MÁS AGRESIVO
 // =========================================================================
 function UpdatePrompt() {
-  const { backAction } = useAppContext(); // Detecta si estamos en un formulario
+  const [necesitaActualizar, setNecesitaActualizar] = useState(false);
   const [workerEsperando, setWorkerEsperando] = useState(null);
-  const [autoActualizando, setAutoActualizando] = useState(false); // NUEVO ESTADO VISUAL
-  const location = useLocation(); 
+  const location = useLocation(); // Enganche a los cambios de ruta
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
     let recargando = false;
     
-    // Escucha el cambio y fuerza la recarga de la app
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!recargando) {
         recargando = true;
@@ -79,6 +77,7 @@ function UpdatePrompt() {
 
       if (registro.waiting) {
         setWorkerEsperando(registro.waiting);
+        setNecesitaActualizar(true);
       }
 
       registro.addEventListener('updatefound', () => {
@@ -87,6 +86,7 @@ function UpdatePrompt() {
           nuevoWorker.addEventListener('statechange', () => {
             if (nuevoWorker.state === 'installed' && navigator.serviceWorker.controller) {
               setWorkerEsperando(nuevoWorker);
+              setNecesitaActualizar(true);
             }
           });
         }
@@ -95,64 +95,42 @@ function UpdatePrompt() {
 
     revisarActualizaciones();
 
-    // Revisor temporal agresivo (cada 3 min)
+    // Revisor temporal base (cada 5 min) por si dejan el celular prendido sin tocar nada
     const intervalo = setInterval(() => {
       navigator.serviceWorker.ready.then(reg => reg.update());
-    }, 3 * 60 * 1000);
+    }, 5 * 60 * 1000);
 
     return () => clearInterval(intervalo);
   }, []);
 
-  // Check silencioso al cambiar de ruta
+  // EL HACK AGRESIVO: Cada vez que el usuario cambia de pestaña/ruta, 
+  // obligamos silenciosamente al Service Worker a buscar actualizaciones en GitHub.
   useEffect(() => {
-    if ('serviceWorker' in navigator && !workerEsperando) {
+    if ('serviceWorker' in navigator && !necesitaActualizar) {
       navigator.serviceWorker.ready.then(reg => {
-        reg.update().catch(() => {});
+        reg.update().catch(err => console.log("Búsqueda silenciosa falló (probablemente sin internet)", err));
       });
     }
-  }, [location.pathname, workerEsperando]);
+  }, [location.pathname, necesitaActualizar]);
 
-  // EL CEREBRO: Aplica la actualización con una micro-pausa visual
-  useEffect(() => {
-    if (workerEsperando && !backAction) {
-      // En lugar de ser un fantasma, mostramos que estamos instalando la mejora
-      setAutoActualizando(true);
-      setTimeout(() => {
-        workerEsperando.postMessage({ type: 'SKIP_WAITING' });
-      }, 1500); // Pantalla visible por 1.5 segundos
+  const aplicarActualizacion = () => {
+    if (workerEsperando) {
+      workerEsperando.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      window.location.reload();
     }
-  }, [workerEsperando, backAction]);
+  };
 
-  // PANTALLA DE CARGA DEL AUTO-ACTUALIZADOR SILENCIOSO
-  if (autoActualizando) {
-    return (
-      <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-        <div className="bg-surface p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col items-center gap-4 border border-primary/20 text-center animate-in zoom-in-95 duration-300">
-          <RefreshCw className="text-primary animate-spin" size={40} />
-          <div>
-            <h3 className="text-dark font-black text-lg mb-1">Instalando mejora...</h3>
-            <p className="text-muted text-sm font-medium">Actualizando el sistema dental</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!necesitaActualizar) return null;
 
-  // Si no hay worker, no renderiza nada
-  if (!workerEsperando) return null;
-
-  // Solo sale el botón si el doctor está llenando un formulario para evitar que pierda sus datos
   return (
     <div className="fixed top-6 left-0 w-full flex justify-center z-[9999]">
       <button 
-        onClick={() => {
-          setAutoActualizando(true);
-          setTimeout(() => workerEsperando.postMessage({ type: 'SKIP_WAITING' }), 800);
-        }}
+        onClick={aplicarActualizacion}
         className="bg-red-600 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_rgba(220,38,38,0.6)] font-black flex items-center gap-2 hover:scale-105 active:scale-95 transition-transform animate-bounce border-2 border-white"
       >
         <RefreshCw className="animate-spin-slow" size={20} />
-        Actualización lista (Guarda y presiona aquí)
+        ¡Actualizar App!
       </button>
     </div>
   );
@@ -184,38 +162,6 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
-      {/* INYECCIÓN DEL TEMA OSCURO PREMIUM (SLATE THEME) */}
-      <style>{`
-        /* ESTILOS GLOBALES MEJORADOS PARA MODO OSCURO */
-        html.dark {
-          color-scheme: dark;
-        }
-        html.dark body, html.dark .bg-background {
-          background-color: #0f172a !important; /* Fondo profundo Premium (Slate 900) */
-        }
-        html.dark .bg-surface {
-          background-color: #1e293b !important; /* Tarjetas límpias (Slate 800) */
-        }
-        html.dark .border-gray-100, 
-        html.dark .border-gray-200 {
-          border-color: #334155 !important; /* Bordes sutiles elegantes (Slate 700) */
-        }
-        html.dark .text-dark {
-          color: #f8fafc !important; /* Texto principal impecable (Slate 50) */
-        }
-        html.dark .text-muted {
-          color: #94a3b8 !important; /* Texto secundario legible (Slate 400) */
-        }
-        html.dark input, html.dark textarea, html.dark select {
-          background-color: #0f172a !important; /* Cajas de texto más oscuras para contrastar */
-          border-color: #334155 !important;
-          color: #f8fafc !important;
-        }
-        html.dark .shadow-sm, html.dark .shadow-md, html.dark .shadow-xl {
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5) !important;
-        }
-      `}</style>
-
       {/* MONTAJE DEL COMPONENTE DE ACTUALIZACIÓN */}
       <UpdatePrompt />
 
@@ -404,7 +350,7 @@ export default function App() {
           document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colores.primary));
           localStorage.setItem('dentalix_color_primario', colores.primary);
         }
-        // NUEVO: CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
+        // NUEVO:  CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
         if(data.cedula) localStorage.setItem('dentalix_cedula', data.cedula);
         if(data.universidad) localStorage.setItem('dentalix_universidad', data.universidad);
         if(data.firma_doctor) localStorage.setItem('dentalix_firma_doctor', data.firma_doctor);
@@ -429,7 +375,7 @@ export default function App() {
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
   return (
-    <AppContext.Provider value={{ setBackAction, backAction }}>
+    <AppContext.Provider value={{ setBackAction }}>
       <Router>
         <RouteChangeListener setBackAction={setBackAction} />
         <Layout nombreClinica={nombreClinica} logoClinica={logoClinica} backAction={backAction}>
