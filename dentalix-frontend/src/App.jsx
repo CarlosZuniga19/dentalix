@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill } from 'lucide-react';
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -52,6 +52,90 @@ window.fetch = async function (...args) {
 };
 // =========================================================================
 
+// =========================================================================
+// NUEVO COMPONENTE: DETECTOR DE ACTUALIZACIONES (PWA)
+// =========================================================================
+function UpdatePrompt() {
+  const [necesitaActualizar, setNecesitaActualizar] = useState(false);
+  const [workerEsperando, setWorkerEsperando] = useState(null);
+
+  useEffect(() => {
+    // Si el navegador no soporta Service Workers (PWA), ignorar.
+    if (!('serviceWorker' in navigator)) return;
+
+    let recargando = false;
+    
+    // Escuchar cuando el nuevo Service Worker toma el control exitosamente
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!recargando) {
+        recargando = true;
+        // Esta línea es el equivalente exacto a Ctrl+Shift+R o a matar/abrir la app
+        window.location.reload(); 
+      }
+    });
+
+    const revisarActualizaciones = async () => {
+      const registro = await navigator.serviceWorker.ready;
+
+      // Caso 1: Ya se descargó una actualización en el fondo y está esperando
+      if (registro.waiting) {
+        setWorkerEsperando(registro.waiting);
+        setNecesitaActualizar(true);
+      }
+
+      // Caso 2: Detectamos en tiempo real que se está descargando una actualización
+      registro.addEventListener('updatefound', () => {
+        const nuevoWorker = registro.installing;
+        if (nuevoWorker) {
+          nuevoWorker.addEventListener('statechange', () => {
+            // Cuando termina de descargar y está listo para instalarse
+            if (nuevoWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              setWorkerEsperando(nuevoWorker);
+              setNecesitaActualizar(true);
+            }
+          });
+        }
+      });
+    };
+
+    revisarActualizaciones();
+
+    // Hacemos que la app pregunte al servidor silenciosamente cada 5 minutos
+    // por si el usuario deja el programa abierto todo el día en la PC
+    const intervalo = setInterval(() => {
+      navigator.serviceWorker.ready.then(reg => reg.update());
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(intervalo);
+  }, []);
+
+  const aplicarActualizacion = () => {
+    if (workerEsperando) {
+      // Mandar la orden de destruir el caché viejo e inyectar el nuevo
+      workerEsperando.postMessage({ type: 'SKIP_WAITING' });
+    } else {
+      // Fallback seguro
+      window.location.reload();
+    }
+  };
+
+  // Si no hay actualizaciones, este componente es un fantasma (no renderiza nada)
+  if (!necesitaActualizar) return null;
+
+  return (
+    <div className="fixed top-6 left-0 w-full flex justify-center z-[9999]">
+      <button 
+        onClick={aplicarActualizacion}
+        className="bg-red-600 text-white px-6 py-3 rounded-full shadow-[0_10px_40px_rgba(220,38,38,0.6)] font-black flex items-center gap-2 hover:scale-105 active:scale-95 transition-transform animate-bounce border-2 border-white"
+      >
+        <RefreshCw className="animate-spin-slow" size={20} />
+        ¡Actualizar App!
+      </button>
+    </div>
+  );
+}
+// =========================================================================
+
 // Helper para esconder el botón Atrás automáticamente si el usuario cambia de menú
 function RouteChangeListener({ setBackAction }) {
   const location = useLocation();
@@ -77,6 +161,9 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
+      {/* MONTAJE DEL COMPONENTE DE ACTUALIZACIÓN */}
+      <UpdatePrompt />
+
       {/* MENÚ LATERAL ESCRITORIO (Oculto en móvil) */}
       <nav className="hidden md:flex fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 flex-col transition-transform duration-300 ease-in-out">
         <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity flex justify-center items-center h-16">

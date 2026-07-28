@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill, Download, FileSpreadsheet, Trash2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import Papa from 'papaparse'; // IMPORTACIÓN NUEVA PARA LEER CSV
+import Papa from 'papaparse';
 import { useAppContext } from './App';
 
 // --- ARREGLOS DE DATOS CLÍNICOS EXACTOS ---
@@ -122,6 +122,25 @@ export default function Pacientes() {
   const [importandoCSV, setImportandoCSV] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Estados y Lógica para Deslizar (Swipe) Fila de Paciente en Móviles
+  const [swipedPaciente, setSwipedPaciente] = useState(null);
+  const touchStartX = useRef(0);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e, id_paciente) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (diff > 40) {
+      setSwipedPaciente(id_paciente);
+    } else if (diff < -40 && swipedPaciente === id_paciente) {
+      setSwipedPaciente(null);
+    }
+  };
+
   const [anamnesis, setAnamnesis] = useState(
     ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {})
   );
@@ -132,7 +151,10 @@ export default function Pacientes() {
 
   useEffect(() => {
     if (vista !== 'lista') {
-      setBackAction(() => () => setVista('lista'));
+      setBackAction(() => () => {
+        setSwipedPaciente(null);
+        setVista('lista');
+      });
     } else {
       setBackAction(null);
     }
@@ -181,6 +203,7 @@ export default function Pacientes() {
     setFirmaBase64(null);
     setCanvasTieneTrazos(false);
     setAnamnesis(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
+    setSwipedPaciente(null);
     setVista('nuevo');
   };
 
@@ -190,13 +213,13 @@ export default function Pacientes() {
       fechaNacimiento: p.fecha_nacimiento || '1998-01-01', direccion: p.direccion || '', ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
     });
     setArchivosLocales([]);
+    setSwipedPaciente(null);
 
     fetch(`${API_URL}?accion=expediente_clinico&id_paciente=${p.id}`)
       .then(res => res.json())
       .then(data => {
         if (data.tratamientos) setTratamientosGuardados(data.tratamientos);
         
-        // Si el backend tuviera la firma guardada, la cargamos
         if (data.firma) setFirmaBase64(data.firma);
         else setFirmaBase64(null);
         setCanvasTieneTrazos(false);
@@ -219,6 +242,32 @@ export default function Pacientes() {
 
     cargarImagenes(p.id); 
     setVista('editar');
+  };
+
+  const eliminarPaciente = (idPaciente) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este paciente? Se eliminarán también sus citas, expediente y fotos asociadas.")) return;
+
+    fetch(`${API_URL}?accion=eliminar_paciente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_paciente: idPaciente })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success || data.mensaje) {
+        alert("Paciente eliminado correctamente.");
+        cargarPacientes();
+        if (vista !== 'lista') {
+          setVista('lista');
+        }
+      } else {
+        alert("Error al eliminar el paciente: " + (data.error || "Error desconocido"));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error de conexión al eliminar el paciente.");
+    });
   };
 
   const handleAnamnesisClick = (idx) => {
@@ -313,7 +362,6 @@ export default function Pacientes() {
   const guardarExpedienteYRegresar = async () => {
     if (!datosPaciente.nombre) { alert("El nombre del paciente es obligatorio."); return; }
 
-    // Capturar firma nativa si se dibujó
     let finalSignature = firmaBase64;
     if (canvasRef.current && canvasTieneTrazos) {
       finalSignature = canvasRef.current.toDataURL('image/png');
@@ -373,7 +421,6 @@ export default function Pacientes() {
     navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
-  // NUEVA FUNCION: Botón rápido a Recetas
   const irARecetas = () => {
     navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
   };
@@ -381,10 +428,8 @@ export default function Pacientes() {
   // --- LÓGICA DE IMPORTACIÓN / EXPORTACIÓN CSV ---
   
   const descargarPlantilla = () => {
-    // Definimos los encabezados exactos que PHP esperará leer
     const headers = ["Nombre", "Telefono", "Fecha de Nacimiento (YYYY-MM-DD)", "Direccion", "Ocupacion", "Motivo de Consulta", "Notas"];
     
-    // Añadimos dos filas de ejemplo para que el doctor entienda cómo llenarlo
     const ejemplo1 = ["Juan Pérez Gómez", "5512345678", "1985-05-20", "Calle Reforma 123", "Ingeniero", "Dolor en muela derecha", "Paciente nervioso"];
     const ejemplo2 = ["María López (Borra estos ejemplos)", "5587654321", "1990-11-05", "Av. Insurgentes 45", "Maestra", "Limpieza anual", ""];
     
@@ -412,7 +457,6 @@ export default function Pacientes() {
       header: true,
       skipEmptyLines: true,
       complete: async function(results) {
-        // results.data contiene un arreglo de objetos JSON (cada fila del excel es un paciente)
         const pacientesAImportar = results.data.map(fila => {
             return {
                 nombre: fila["Nombre"] || fila["nombre"] || fila["NOMBRE"] || "",
@@ -424,7 +468,6 @@ export default function Pacientes() {
                 notas: fila["Notas"] || fila["notas"] || ""
             };
         }).filter(p => p.nombre.trim() !== "" && !p.nombre.includes("Borra estos ejemplos")); 
-        // Evitamos subir filas vacías o los ejemplos de la plantilla
 
         if (pacientesAImportar.length === 0) {
             alert("No se encontraron pacientes válidos en el archivo.");
@@ -449,7 +492,7 @@ export default function Pacientes() {
             
             if (data.success) {
                 alert(`¡Éxito! Se importaron ${data.importados} pacientes correctamente.`);
-                cargarPacientes(); // Refrescamos la lista
+                cargarPacientes();
             } else {
                 alert("Error al importar: " + data.error);
             }
@@ -458,7 +501,7 @@ export default function Pacientes() {
             alert("Error de conexión al importar el archivo.");
         } finally {
             setImportandoCSV(false);
-            if(fileInputRef.current) fileInputRef.current.value = ""; // Limpiamos el input file
+            if(fileInputRef.current) fileInputRef.current.value = "";
         }
       },
       error: function(error) {
@@ -477,8 +520,7 @@ export default function Pacientes() {
     try {
       const doc = new jsPDF('p', 'mm', 'a4');
       
-      // Obtenemos los ajustes de la BD (Caché local)
-      let primaryColor = [139, 92, 246]; // Morado por defecto
+      let primaryColor = [139, 92, 246];
       const colorCache = localStorage.getItem('dentalix_color_primario');
       if (colorCache) {
         const hex = colorCache.replace('#', '');
@@ -492,7 +534,6 @@ export default function Pacientes() {
       const nombreApp = localStorage.getItem('dentalix_nombre_app') || 'DENTALIX CLÍNICA';
       const logoCache = localStorage.getItem('dentalix_logo');
 
-      // --- ENCABEZADO ---
       doc.setFillColor(...primaryColor);
       doc.rect(0, 0, 210, 35, 'F');
       doc.setTextColor(255, 255, 255);
@@ -500,7 +541,6 @@ export default function Pacientes() {
       doc.setFontSize(22);
       doc.text("EXPEDIENTE CLÍNICO", 14, 23);
       
-      // Inyección del Logo de la Clínica si existe, o el nombre como respaldo
       if (logoCache) {
         doc.addImage(logoCache, 'PNG', 160, 5, 35, 25);
       } else {
@@ -510,7 +550,6 @@ export default function Pacientes() {
 
       let yPos = 45;
 
-      // --- DATOS DEL PACIENTE ---
       doc.setTextColor(...primaryColor);
       doc.setFontSize(12);
       doc.text("DATOS DEL PACIENTE", 14, yPos);
@@ -531,7 +570,6 @@ export default function Pacientes() {
       doc.text(motivoText, 14, yPos);
       yPos += (motivoText.length * 5) + 5;
 
-      // --- ANAMNESIS ---
       doc.setTextColor(...primaryColor);
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -562,7 +600,6 @@ export default function Pacientes() {
         yPos = 20;
       }
 
-      // --- MAPEO DENTAL (ODONTOGRAMA EN PDF NATIVO) ---
       doc.setTextColor(...primaryColor);
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -670,7 +707,6 @@ export default function Pacientes() {
         yPos += 4;
       }
 
-      // --- HISTORIAL DE TRATAMIENTOS (TABLA) ---
       if (tratamientosGuardados.length > 0) {
         if (yPos > 240) { doc.addPage(); yPos = 20; }
         
@@ -700,7 +736,6 @@ export default function Pacientes() {
         yPos += 15;
       }
 
-      // --- FIRMA DIGITAL EN EL PDF ---
       let finalSignatureToPrint = firmaBase64;
       if (canvasRef.current && canvasTieneTrazos) {
         finalSignatureToPrint = canvasRef.current.toDataURL('image/png');
@@ -715,7 +750,7 @@ export default function Pacientes() {
         doc.addImage(finalSignatureToPrint, 'PNG', 75, yPos, 60, 30);
         yPos += 30;
       } else {
-        yPos += 25; // Espacio por si lo quieren firmar a mano con pluma
+        yPos += 25;
       }
 
       doc.setDrawColor(0, 0, 0);
@@ -790,47 +825,114 @@ export default function Pacientes() {
           </div>
         </div>
         <div className="relative mb-4"><input type="text" placeholder="Buscar paciente por nombre..." value={busquedaP} onChange={(e) => setBusquedaP(e.target.value)} className="w-full pl-6 pr-4 py-3 bg-white dark:bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary shadow-sm text-dark" /></div>
+        
+        {/* EN MÓVIL: TARJETAS CON SWIPE | EN ESCRITORIO: TABLA CON BOTÓN FIJO DE BORRAR */}
         <div className="bg-white dark:bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {filtrados.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-surface dark:bg-background border-b border-gray-100 text-muted font-bold text-xs uppercase">
-                    <th className="p-4">Nombre</th>
-                    <th className="p-4">Teléfono</th>
-                    <th className="p-4 hidden md:table-cell">Ocupación</th>
-                    <th className="p-4 hidden md:table-cell">Motivo</th>
-                    <th className="p-4 text-center">Cita Pendiente</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 text-sm text-dark font-medium">
-                  {filtrados.map(p => {
-                    const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
-                    return (
-                      <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 dark:hover:bg-background/40 transition-colors cursor-pointer group">
-                        <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td>
-                        <td className="p-4 text-muted">
+            <>
+              {/* VISTA MÓVIL (TARJETAS DESLIZABLES) */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {filtrados.map(p => {
+                  const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
+                  return (
+                    <div key={p.id} className="relative overflow-hidden bg-danger">
+                      {/* BOTÓN ROJO QUE APARECE AL DESLIZAR */}
+                      <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0">
+                        <button
+                          onClick={() => eliminarPaciente(p.id)}
+                          className="text-white w-full h-full flex flex-col items-center justify-center font-bold"
+                        >
+                          <Trash2 size={22} className="mb-1" />
+                          <span className="text-[10px]">Eliminar</span>
+                        </button>
+                      </div>
+
+                      {/* TARJETA DESLIZABLE */}
+                      <div
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={(e) => handleTouchEnd(e, p.id)}
+                        onClick={() => abrirEdicionPaciente(p)}
+                        className={`p-4 bg-white dark:bg-surface relative z-10 flex justify-between items-center transition-transform duration-300 ${swipedPaciente === p.id ? '-translate-x-24' : 'translate-x-0'}`}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-primary text-base">{p.nombre}</span>
                           {p.telefono ? (
-                            <a 
-                              href={getWaLink(p.telefono)} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              onClick={(e) => e.stopPropagation()} 
-                              className="text-[#25D366] hover:underline flex items-center gap-1.5 font-bold"
+                            <a
+                              href={getWaLink(p.telefono)}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[#25D366] text-xs font-bold flex items-center gap-1"
                             >
-                              <MessageCircle size={15} /> {p.telefono}
+                              <MessageCircle size={14} /> {p.telefono}
                             </a>
-                          ) : '—'}
-                        </td>
-                        <td className="p-4 hidden md:table-cell">{p.ocupacion || '—'}</td>
-                        <td className="p-4 truncate max-w-[200px] hidden md:table-cell">{p.motivo_consulta || '—'}</td>
-                        <td className="p-4 text-center font-black">{tieneCita ? <span className="text-primary bg-primary/10 px-3 py-1 rounded-full">Sí</span> : <span className="text-muted">No</span>}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          ) : <span className="text-xs text-muted">Sin teléfono</span>}
+                          {p.motivo_consulta && <span className="text-xs text-muted truncate max-w-[200px]">{p.motivo_consulta}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {tieneCita ? (
+                            <span className="text-primary bg-primary/10 text-xs px-2.5 py-1 rounded-full font-black">Cita pendiente</span>
+                          ) : (
+                            <span className="text-muted text-xs">Sin cita</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* VISTA ESCRITORIO (TABLA TRADICIONAL CON BASURERO FIJO) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface dark:bg-background border-b border-gray-100 text-muted font-bold text-xs uppercase">
+                      <th className="p-4">Nombre</th>
+                      <th className="p-4">Teléfono</th>
+                      <th className="p-4">Ocupación</th>
+                      <th className="p-4">Motivo</th>
+                      <th className="p-4 text-center">Cita Pendiente</th>
+                      <th className="p-4 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 text-sm text-dark font-medium">
+                    {filtrados.map(p => {
+                      const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
+                      return (
+                        <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 dark:hover:bg-background/40 transition-colors cursor-pointer group">
+                          <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td>
+                          <td className="p-4 text-muted">
+                            {p.telefono ? (
+                              <a 
+                                href={getWaLink(p.telefono)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                onClick={(e) => e.stopPropagation()} 
+                                className="text-[#25D366] hover:underline flex items-center gap-1.5 font-bold"
+                              >
+                                <MessageCircle size={15} /> {p.telefono}
+                              </a>
+                            ) : '—'}
+                          </td>
+                          <td className="p-4">{p.ocupacion || '—'}</td>
+                          <td className="p-4 truncate max-w-[200px]">{p.motivo_consulta || '—'}</td>
+                          <td className="p-4 text-center font-black">{tieneCita ? <span className="text-primary bg-primary/10 px-3 py-1 rounded-full">Sí</span> : <span className="text-muted">No</span>}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); eliminarPaciente(p.id); }}
+                              className="text-gray-400 hover:text-danger p-1 transition-colors"
+                              title="Eliminar paciente"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : <div className="p-8 text-center text-muted">No hay pacientes registrados aún.</div>}
         </div>
       </div>
@@ -864,7 +966,6 @@ export default function Pacientes() {
             <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
             {datosPaciente.id && (
               <div className="flex flex-row justify-center items-center gap-2 w-full sm:w-auto">
-                {/* BOTÓN NUEVO DE RECETAS */}
                 <button 
                   onClick={irARecetas}
                   className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2 shadow-sm transition-colors justify-center shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white whitespace-nowrap"
@@ -1054,7 +1155,6 @@ export default function Pacientes() {
         )}
       </section>
       
-      {/* AQUI ABRIMOS LA CAJA BLANCA DE NUEVO PARA LO RESTANTE */}
       <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
 
         <section>
@@ -1134,9 +1234,21 @@ export default function Pacientes() {
 
       </div>
 
-      <button onClick={guardarExpedienteYRegresar} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-[1.01]">
-        <Check size={24} /> Guardar Expediente de Paciente
-      </button>
+      {/* BOTONERA INFERIOR: GUARDAR Y ELIMINAR EXPEDIENTE */}
+      <div className="flex flex-col md:flex-row gap-3 w-full">
+        <button onClick={guardarExpedienteYRegresar} className="w-full flex-1 bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-[1.01]">
+          <Check size={24} /> Guardar Expediente de Paciente
+        </button>
+
+        {datosPaciente.id && (
+          <button 
+            onClick={() => eliminarPaciente(datosPaciente.id)} 
+            className="w-full md:w-auto bg-danger/10 hover:bg-danger text-danger hover:text-white dark:bg-red-900/20 dark:hover:bg-red-900/80 dark:text-red-400 py-4 px-8 rounded-full font-black text-lg shadow-sm flex justify-center items-center gap-2 transition-colors shrink-0"
+          >
+            <Trash2 size={24} /> Eliminar Expediente
+          </button>
+        )}
+      </div>
 
       {/* Modal Visor Imagen */}
       {imagenEnGrande && (

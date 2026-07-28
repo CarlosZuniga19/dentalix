@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Plus, Trash2, Printer, MessageCircle, User, X, Pill, Stethoscope, AlertCircle, Calendar, FileText } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -25,7 +25,26 @@ export default function Recetas() {
   const [signosVitales, setSignosVitales] = useState({ peso: '', presion: '', temperatura: '', alergias: '' });
   const [medicamentos, setMedicamentos] = useState([{ id: Date.now(), nombre: '', indicaciones: '' }]);
 
+  // Estados y Lógica para Deslizar (Swipe) Fila de Receta en Móviles
+  const [swipedReceta, setSwipedReceta] = useState(null);
+  const touchStartX = useRef(0);
+
   const API_URL = 'https://dentalix.lat/api.php';
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e, id_receta) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (diff > 40) {
+      setSwipedReceta(id_receta);
+    } else if (diff < -40 && swipedReceta === id_receta) {
+      setSwipedReceta(null);
+    }
+  };
 
   const cargarHistorial = () => {
     fetch(`${API_URL}?accion=recetas_lista`)
@@ -62,7 +81,9 @@ export default function Recetas() {
         }
       });
     } else {
-      setBackAction(null);
+      setBackAction(() => () => {
+        setSwipedReceta(null);
+      });
     }
     return () => setBackAction(null);
   }, [vista, vinoDeAfuera, setBackAction, navigate]);
@@ -232,6 +253,31 @@ export default function Recetas() {
     }
   };
 
+  // NUEVA FUNCIÓN: ELIMINAR RECETA DEL HISTORIAL
+  const eliminarReceta = (idReceta) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta receta del historial? Esta acción no se puede deshacer.")) return;
+    
+    fetch(`${API_URL}?accion=eliminar_receta`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_receta: idReceta })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success || data.mensaje) {
+        alert("Receta eliminada correctamente.");
+        cargarHistorial();
+        setSwipedReceta(null);
+      } else {
+        alert("Error al eliminar la receta: " + (data.error || "Desconocido"));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error de red al intentar eliminar la receta.");
+    });
+  };
+
   // Acciones Rápidas del Historial
   const reImprimirHistorial = (receta) => {
     const signos = JSON.parse(receta.signos_vitales || '{}');
@@ -251,6 +297,7 @@ export default function Recetas() {
     setSignosVitales({ peso: '', presion: '', temperatura: '', alergias: '' });
     setFecha(new Date().toISOString().split('T')[0]);
     setVinoDeAfuera(false);
+    setSwipedReceta(null);
   };
 
   const agregarMedicamento = () => setMedicamentos([...medicamentos, { id: Date.now(), nombre: '', indicaciones: '' }]);
@@ -292,27 +339,55 @@ export default function Recetas() {
             historialFiltrado.map(receta => {
               const meds = JSON.parse(receta.medicamentos || '[]');
               return (
-                <div key={receta.id} className="bg-white dark:bg-surface p-4 sm:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-primary/30 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 p-3 rounded-xl shrink-0">
-                      <FileText size={24} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-dark text-base">{receta.paciente}</h3>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted font-medium mt-1">
-                        <span className="flex items-center gap-1"><Calendar size={12}/> {receta.fecha}</span>
-                        <span className="flex items-center gap-1"><Pill size={12}/> {meds.length} medicamento(s)</span>
+                <div key={receta.id} className="relative overflow-hidden rounded-2xl border border-gray-100 shadow-sm bg-danger">
+                  
+                  {/* BOTÓN ROJO QUE APARECE AL DESLIZAR (MÓVIL) */}
+                  <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
+                    <button
+                      onClick={() => eliminarReceta(receta.id)}
+                      className="text-white w-full h-full flex flex-col items-center justify-center font-bold"
+                    >
+                      <Trash2 size={22} className="mb-1" />
+                      <span className="text-[10px]">Eliminar</span>
+                    </button>
+                  </div>
+
+                  {/* TARJETA DESLIZABLE */}
+                  <div 
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={(e) => handleTouchEnd(e, receta.id)}
+                    className={`bg-white dark:bg-surface p-4 sm:p-5 relative z-10 flex flex-col sm:flex-row justify-between sm:items-center gap-4 transition-transform duration-300 ${swipedReceta === receta.id ? '-translate-x-24' : 'translate-x-0'} hover:border-primary/30`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 p-3 rounded-xl shrink-0">
+                        <FileText size={24} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-dark text-base">{receta.paciente}</h3>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted font-medium mt-1">
+                          <span className="flex items-center gap-1"><Calendar size={12}/> {receta.fecha}</span>
+                          <span className="flex items-center gap-1"><Pill size={12}/> {meds.length} medicamento(s)</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex gap-2 sm:shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-1 sm:mt-0">
-                    <button onClick={() => reImprimirHistorial(receta)} className="flex-1 sm:flex-none bg-surface hover:bg-gray-100 dark:bg-background dark:hover:bg-gray-800 text-dark p-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-gray-200 shadow-sm">
-                      <Printer size={16}/> Imprimir
-                    </button>
-                    <button onClick={() => reEnviarWAHistorial(receta)} className="flex-1 sm:flex-none bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#20bd5a] p-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-[#25D366]/30 shadow-sm">
-                      <MessageCircle size={16}/> Enviar
-                    </button>
+                    
+                    <div className="flex items-center gap-2 sm:shrink-0 border-t sm:border-t-0 pt-3 sm:pt-0 mt-1 sm:mt-0">
+                      <button onClick={() => reImprimirHistorial(receta)} className="flex-1 sm:flex-none bg-surface hover:bg-gray-100 dark:bg-background dark:hover:bg-gray-800 text-dark p-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-gray-200 shadow-sm">
+                        <Printer size={16}/> Imprimir
+                      </button>
+                      <button onClick={() => reEnviarWAHistorial(receta)} className="flex-1 sm:flex-none bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#20bd5a] p-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-colors border border-[#25D366]/30 shadow-sm">
+                        <MessageCircle size={16}/> Enviar
+                      </button>
+                      
+                      {/* BOTÓN DE BORRAR PARA ESCRITORIO (Oculto en Móvil) */}
+                      <button
+                        onClick={() => eliminarReceta(receta.id)}
+                        className="hidden md:flex text-gray-400 hover:text-danger p-2 rounded-xl transition-colors ml-1"
+                        title="Eliminar receta"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

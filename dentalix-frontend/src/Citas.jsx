@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, X, Check, FileDown, MessageCircle, Search, Bell, Edit2, Pill } from 'lucide-react';
+import { Plus, X, Check, FileDown, MessageCircle, Search, Bell, Edit2, Pill, Trash2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -61,6 +61,27 @@ export default function Citas() {
   const [dibujando, setDibujando] = useState(false);
   const [canvasTieneTrazos, setCanvasTieneTrazos] = useState(false);
   const [firmaBase64, setFirmaBase64] = useState(null);
+
+  // Estados y Lógica para Deslizar (Swipe) la Cita en Móviles
+  const [swipedCita, setSwipedCita] = useState(null);
+  const touchStartX = useRef(0);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e, id_cita) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (diff > 40) {
+      // Swipe hacia la izquierda: abrir menú de basura
+      setSwipedCita(id_cita);
+    } else if (diff < -40 && swipedCita === id_cita) {
+      // Swipe hacia la derecha: cerrar menú de basura
+      setSwipedCita(null);
+    }
+  };
 
   // Construimos el historial para que el odontograma pinte TODOS los dientes seleccionados a la vez
   const historialOdontograma = {};
@@ -209,6 +230,7 @@ export default function Citas() {
     setProcedimientosSeleccionados([]); setAbono('');
     setBusquedaPaciente('');
     limpiarFirma();
+    setSwipedCita(null);
   };
 
   const seleccionarPacienteExistente = (p) => {
@@ -292,6 +314,34 @@ export default function Citas() {
       return;
     }
     navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
+  };
+
+  // NUEVA FUNCIÓN: ELIMINAR CITA (API CALL)
+  const eliminarCita = (idCita) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta cita? Esta acción no se puede deshacer y borrará los procedimientos asociados a esta cotización.")) return;
+    
+    fetch(`${API_URL}?accion=eliminar_cita`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_cita: idCita })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success || data.mensaje) {
+        alert("Cita eliminada correctamente.");
+        recargarCitas();
+        if (vista !== 'lista') {
+            resetFormulario();
+            setVista('lista');
+        }
+      } else {
+        alert("Error al eliminar cita: " + (data.error || "Desconocido"));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error de red al intentar eliminar la cita.");
+    });
   };
 
   // ============================================================================
@@ -604,43 +654,72 @@ export default function Citas() {
             citas.map(c => (
               <div 
                 key={c.id_cita} 
-                className="bg-white dark:bg-surface rounded-2xl border border-gray-100 shadow-sm transition-all group relative overflow-hidden flex flex-col hover:border-primary/30 dark:hover:border-primary/50"
+                className="relative overflow-hidden rounded-2xl border border-gray-100 shadow-sm bg-danger"
               >
-                {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
-                
-                {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
+                {/* FONDO ROJO Y BOTÓN DE BORRAR (MÓVIL) - Visible al hacer Swipe */}
+                <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
+                  <button
+                    onClick={() => eliminarCita(c.id_cita)}
+                    className="text-white w-full h-full flex flex-col items-center justify-center font-bold"
+                  >
+                    <Trash2 size={24} className="mb-1" />
+                    <span className="text-[10px]">Eliminar</span>
+                  </button>
+                </div>
+
+                {/* CONTENIDO PRINCIPAL DE LA TARJETA */}
                 <div 
-                  onClick={() => abrirEdicionCita(c)}
-                  className="p-4 flex justify-between items-center hover:bg-surface/60 dark:hover:bg-background/40 cursor-pointer"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={(e) => handleTouchEnd(e, c.id_cita)}
+                  className={`bg-white dark:bg-surface w-full relative z-10 flex flex-col transition-transform duration-300 ${swipedCita === c.id_cita ? '-translate-x-24' : 'translate-x-0'} hover:border-primary/30 dark:hover:border-primary/50`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
-                      <div className="text-sm font-black">{c.hora.substring(0,5)}</div>
-                      <div>{c.fecha}</div>
+                  {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
+                  
+                  {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
+                  <div 
+                    onClick={() => abrirEdicionCita(c)}
+                    className="p-4 flex justify-between items-center hover:bg-surface/60 dark:hover:bg-background/40 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
+                        <div className="text-sm font-black">{c.hora.substring(0,5)}</div>
+                        <div>{c.fecha}</div>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-dark text-base flex items-center gap-2">
+                          {c.paciente}
+                          {c.esMultiple && <span className="bg-surface dark:bg-background text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
+                        </h3>
+                        <p className="text-xs text-muted">{c.telefono || 'Sin teléfono'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-dark text-base flex items-center gap-2">
-                        {c.paciente}
-                        {c.esMultiple && <span className="bg-surface dark:bg-background text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
-                      </h3>
-                      <p className="text-xs text-muted">{c.telefono || 'Sin teléfono'}</p>
+                    
+                    <div className="flex items-center gap-3">
+                      <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
+                        {c.estado || 'Programada'}
+                      </span>
+                      {/* BOTÓN DE BORRAR PARA ESCRITORIO (Oculto en Móvil) */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); eliminarCita(c.id_cita); }}
+                        className="hidden md:flex text-gray-400 hover:text-danger p-1 transition-colors"
+                        title="Eliminar cita"
+                      >
+                        <Trash2 size={20} />
+                      </button>
                     </div>
                   </div>
-                  <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
-                    {c.estado || 'Programada'}
-                  </span>
-                </div>
-                
-                {/* Botón Inferior: WhatsApp */}
-                <div className="px-4 py-2 border-t border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-background/50 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
-                    className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
-                  >
-                    <MessageCircle size={14} />
-                    Enviar Recordatorio
-                  </button>
+                  
+                  {/* Botón Inferior: WhatsApp */}
+                  <div className="px-4 py-2 border-t border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-background/50 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
+                      className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
+                    >
+                      <MessageCircle size={14} />
+                      Enviar Recordatorio
+                    </button>
+                  </div>
                 </div>
 
               </div>
@@ -903,9 +982,20 @@ export default function Citas() {
         </section>
       </div>
 
-      <button onClick={guardarCitaCompleta} className="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2">
-        <Check size={24} /> {idCitaEditando ? "Actualizar Cita y Paciente" : "Guardar Registro y Cita"}
-      </button>
+      <div className="flex flex-col md:flex-row gap-3 w-full">
+        <button onClick={guardarCitaCompleta} className="w-full flex-1 bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2">
+          <Check size={24} /> {idCitaEditando ? "Actualizar Cita y Paciente" : "Guardar Registro y Cita"}
+        </button>
+
+        {idCitaEditando && (
+          <button 
+            onClick={() => eliminarCita(idCitaEditando)} 
+            className="w-full md:w-auto bg-danger/10 hover:bg-danger text-danger hover:text-white dark:bg-red-900/20 dark:hover:bg-red-900/80 dark:text-red-400 py-4 px-8 rounded-full font-black text-lg shadow-sm flex justify-center items-center gap-2 transition-colors"
+          >
+            <Trash2 size={24} /> Eliminar
+          </button>
+        )}
+      </div>
 
       {/* ========================================================================= */}
       {/* POPUP DE PROCEDIMIENTO INDIVIDUAL + ODONTOGRAMA (Z-INDEX 60 PARA MÓVIL)    */}
