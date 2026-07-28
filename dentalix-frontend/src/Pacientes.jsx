@@ -433,18 +433,23 @@ export default function Pacientes() {
     const ejemplo1 = ["Juan Pérez Gómez", "5512345678", "1985-05-20", "Calle Reforma 123", "Ingeniero", "Dolor en muela derecha", "Paciente nervioso"];
     const ejemplo2 = ["María López (Borra estos ejemplos)", "5587654321", "1990-11-05", "Av. Insurgentes 45", "Maestra", "Limpieza anual", ""];
     
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += headers.join(",") + "\n";
+    let csvContent = headers.join(",") + "\n";
     csvContent += ejemplo1.map(e => `"${e}"`).join(",") + "\n";
     csvContent += ejemplo2.map(e => `"${e}"`).join(",") + "\n";
     
-    const encodedUri = encodeURI(csvContent);
+    // SOLUCIÓN PARA DESCARGAS EN MÓVILES (Uso de Blob)
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' }); // \ufeff permite leer acentos en Excel
+    const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.href = url;
     link.setAttribute("download", "Plantilla_Pacientes_Dentalix.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // Limpieza de memoria
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const handleSubirCSV = (event) => {
