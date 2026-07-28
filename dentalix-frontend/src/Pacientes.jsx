@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill } from 'lucide-react';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill, Download, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse'; // IMPORTACIÓN NUEVA PARA LEER CSV
 import { useAppContext } from './App';
 
 // --- ARREGLOS DE DATOS CLÍNICOS EXACTOS ---
@@ -116,10 +117,18 @@ export default function Pacientes() {
 
   // Estado para la carga visual del PDF
   const [generandoPDF, setGenerandoPDF] = useState(false);
+  
+  // Estado de carga para importación CSV
+  const [importandoCSV, setImportandoCSV] = useState(false);
+  const fileInputRef = useRef(null);
 
   const [anamnesis, setAnamnesis] = useState(
     ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {})
   );
+
+  const cargarPacientes = () => {
+    fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setListaPacientes(data || []));
+  };
 
   useEffect(() => {
     if (vista !== 'lista') {
@@ -132,7 +141,7 @@ export default function Pacientes() {
 
   useEffect(() => {
     fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
-    fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setListaPacientes(data || []));
+    cargarPacientes();
     fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => setTodasLasCitas(data || []));
   }, [vista]);
 
@@ -367,6 +376,97 @@ export default function Pacientes() {
   // NUEVA FUNCION: Botón rápido a Recetas
   const irARecetas = () => {
     navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
+  };
+
+  // --- LÓGICA DE IMPORTACIÓN / EXPORTACIÓN CSV ---
+  
+  const descargarPlantilla = () => {
+    // Definimos los encabezados exactos que PHP esperará leer
+    const headers = ["Nombre", "Telefono", "Fecha de Nacimiento (YYYY-MM-DD)", "Direccion", "Ocupacion", "Motivo de Consulta", "Notas"];
+    
+    // Añadimos dos filas de ejemplo para que el doctor entienda cómo llenarlo
+    const ejemplo1 = ["Juan Pérez Gómez", "5512345678", "1985-05-20", "Calle Reforma 123", "Ingeniero", "Dolor en muela derecha", "Paciente nervioso"];
+    const ejemplo2 = ["María López (Borra estos ejemplos)", "5587654321", "1990-11-05", "Av. Insurgentes 45", "Maestra", "Limpieza anual", ""];
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += headers.join(",") + "\n";
+    csvContent += ejemplo1.map(e => `"${e}"`).join(",") + "\n";
+    csvContent += ejemplo2.map(e => `"${e}"`).join(",") + "\n";
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Plantilla_Pacientes_Dentalix.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSubirCSV = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setImportandoCSV(true);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async function(results) {
+        // results.data contiene un arreglo de objetos JSON (cada fila del excel es un paciente)
+        const pacientesAImportar = results.data.map(fila => {
+            return {
+                nombre: fila["Nombre"] || fila["nombre"] || fila["NOMBRE"] || "",
+                telefono: fila["Telefono"] || fila["telefono"] || fila["Teléfono"] || "",
+                fechaNacimiento: fila["Fecha de Nacimiento (YYYY-MM-DD)"] || fila["fecha_nacimiento"] || "",
+                direccion: fila["Direccion"] || fila["direccion"] || fila["Dirección"] || "",
+                ocupacion: fila["Ocupacion"] || fila["ocupacion"] || fila["Ocupación"] || "",
+                motivo: fila["Motivo de Consulta"] || fila["motivo"] || "",
+                notas: fila["Notas"] || fila["notas"] || ""
+            };
+        }).filter(p => p.nombre.trim() !== "" && !p.nombre.includes("Borra estos ejemplos")); 
+        // Evitamos subir filas vacías o los ejemplos de la plantilla
+
+        if (pacientesAImportar.length === 0) {
+            alert("No se encontraron pacientes válidos en el archivo.");
+            setImportandoCSV(false);
+            if(fileInputRef.current) fileInputRef.current.value = "";
+            return;
+        }
+
+        try {
+            const userId = localStorage.getItem('dentalix_usuario_id') || '1';
+            
+            const res = await fetch(`${API_URL}?accion=importar_pacientes_csv`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    pacientes: pacientesAImportar, 
+                    usuario_id: userId 
+                })
+            });
+
+            const data = await res.json();
+            
+            if (data.success) {
+                alert(`¡Éxito! Se importaron ${data.importados} pacientes correctamente.`);
+                cargarPacientes(); // Refrescamos la lista
+            } else {
+                alert("Error al importar: " + data.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error de conexión al importar el archivo.");
+        } finally {
+            setImportandoCSV(false);
+            if(fileInputRef.current) fileInputRef.current.value = ""; // Limpiamos el input file
+        }
+      },
+      error: function(error) {
+        alert("Error al leer el archivo CSV: " + error.message);
+        setImportandoCSV(false);
+        if(fileInputRef.current) fileInputRef.current.value = "";
+      }
+    });
   };
 
   // --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO ---
@@ -670,7 +770,24 @@ export default function Pacientes() {
       <div className="max-w-6xl mx-auto pb-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div><h1 className="text-2xl font-bold text-dark">Pacientes Registrados</h1><p className="text-muted text-sm">Total: {filtrados.length} pacientes</p></div>
-          <button onClick={handleNuevoPaciente} className="bg-primary hover:bg-primary-hover text-white px-5 py-2.5 rounded-full flex items-center gap-2 font-medium shadow-sm shrink-0"><Plus size={20} /> Agregar paciente nuevo</button>
+          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            {/* BOTÓN DESCARGAR PLANTILLA */}
+            <button onClick={descargarPlantilla} className="flex-1 sm:flex-none bg-surface hover:bg-gray-100 text-dark border border-gray-200 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm transition-colors text-[11px] sm:text-sm whitespace-nowrap">
+                <Download size={16} className="text-muted shrink-0" /> <span>Plantilla<span className="hidden sm:inline"> CSV</span></span>
+            </button>
+            
+            {/* BOTÓN SUBIR ARCHIVO */}
+            <label className={`flex-1 sm:flex-none cursor-pointer ${importandoCSV ? 'bg-gray-100 text-muted' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'} border border-primary/20 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm transition-colors text-[11px] sm:text-sm whitespace-nowrap`}>
+                {importandoCSV ? <Loader2 size={16} className="animate-spin shrink-0" /> : <FileSpreadsheet size={16} className="shrink-0" />}
+                {importandoCSV ? 'Importando...' : <span>Importar<span className="hidden sm:inline"> CSV</span></span>}
+                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleSubirCSV} disabled={importandoCSV} />
+            </label>
+
+            {/* BOTÓN NUEVO PACIENTE NORMAL */}
+            <button onClick={handleNuevoPaciente} className="flex-1 sm:flex-none bg-primary hover:bg-primary-hover text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm shrink-0 text-[11px] sm:text-sm whitespace-nowrap">
+                <Plus size={16} className="shrink-0" /> Nuevo
+            </button>
+          </div>
         </div>
         <div className="relative mb-4"><input type="text" placeholder="Buscar paciente por nombre..." value={busquedaP} onChange={(e) => setBusquedaP(e.target.value)} className="w-full pl-6 pr-4 py-3 bg-white dark:bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary shadow-sm text-dark" /></div>
         <div className="bg-white dark:bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -746,27 +863,27 @@ export default function Pacientes() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
             <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
             {datosPaciente.id && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex flex-row justify-center items-center gap-2 w-full sm:w-auto">
                 {/* BOTÓN NUEVO DE RECETAS */}
                 <button 
                   onClick={irARecetas}
-                  className="px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white"
+                  className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2 shadow-sm transition-colors justify-center shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white whitespace-nowrap"
                 >
-                  <Pill size={16} /> Recetar
+                  <Pill size={16} className="shrink-0" /> Recetar
                 </button>
                 <button 
                   onClick={generarExpedientePDF} 
                   disabled={generandoPDF}
-                  className={`px-5 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm transition-colors w-full sm:w-auto justify-center shrink-0 ${
+                  className={`flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2 shadow-sm transition-colors justify-center shrink-0 whitespace-nowrap ${
                     generandoPDF 
                       ? 'bg-gray-100 text-muted cursor-wait' 
                       : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
                   }`}
                 >
                   {generandoPDF ? (
-                    <><Loader2 size={16} className="animate-spin" /> Generando PDF...</>
+                    <><Loader2 size={16} className="animate-spin shrink-0" /> <span>Generando<span className="hidden sm:inline"> PDF...</span></span></>
                   ) : (
-                    <><Printer size={16}/> Imprimir PDF</>
+                    <><Printer size={16} className="shrink-0" /> <span>Imprimir<span className="hidden sm:inline"> PDF</span></span></>
                   )}
                 </button>
               </div>
