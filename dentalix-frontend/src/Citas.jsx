@@ -654,7 +654,7 @@ export default function Citas() {
             citas.map(c => (
               <div 
                 key={c.id_cita} 
-                className="relative overflow-hidden rounded-2xl border border-gray-100 shadow-sm bg-danger"
+                className="relative overflow-hidden rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm bg-danger"
               >
                 {/* FONDO ROJO Y BOTÓN DE BORRAR (MÓVIL) - Visible al hacer Swipe */}
                 <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
@@ -678,7 +678,7 @@ export default function Citas() {
                   {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
-                    className="p-4 flex justify-between items-center hover:bg-surface/60 dark:hover:bg-background/40 cursor-pointer"
+                    className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
@@ -710,7 +710,7 @@ export default function Citas() {
                   </div>
                   
                   {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-2 border-t border-gray-50 dark:border-gray-800/50 bg-gray-50/50 dark:bg-background/50 flex justify-end">
+                  <div className="px-4 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-transparent flex justify-end">
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
@@ -725,7 +725,7 @@ export default function Citas() {
               </div>
             ))
           ) : (
-            <div className="bg-white dark:bg-surface p-8 rounded-2xl border text-center text-muted">No hay citas programadas.</div>
+            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-white/5 text-center text-muted">No hay citas programadas.</div>
           )}
         </div>
       </div>
@@ -762,7 +762,7 @@ export default function Citas() {
         )}
       </div>
 
-      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border-gray-100 p-6 sm:p-8 space-y-10">
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-white/5 p-6 sm:p-8 space-y-10">
         
         {/* === SECCIÓN BOTONERA SUPERIOR (Solo si hay paciente) === */}
         {datosPaciente.nombre && (
