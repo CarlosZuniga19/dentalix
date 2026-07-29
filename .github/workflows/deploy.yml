@@ -31,3 +31,4 @@ jobs:
         password: ${{ secrets.FTP_PASSWORD }}
         local-dir: ./dentalix-frontend/dist/
         server-dir: ./domains/dentalix.lat/public_html/
+        timeout: 300000
