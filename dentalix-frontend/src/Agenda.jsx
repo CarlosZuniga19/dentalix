@@ -23,7 +23,6 @@ export default function Agenda() {
       .catch(err => console.error(err));
   }, []);
 
-  // Generador exacto de la semana (Previene bug de desfase de horario)
   const generarSemanaActual = () => {
     const curr = new Date();
     const first = curr.getDate() - curr.getDay() + 1; 
