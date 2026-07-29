@@ -18,8 +18,8 @@ jobs:
         node-version: 22
 
     - name: Instalar y Compilar
+      # Ya no entramos a dentalix-frontend, corremos esto en la raíz
       run: |
-        cd dentalix-frontend
         npm install
         npm run build
 
@@ -29,5 +29,6 @@ jobs:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./dentalix-frontend/dist/
+        # Apuntamos directamente a la carpeta dist de la raíz
+        local-dir: ./dist/ 
         server-dir: ./domains/dentalix.lat/public_html/
