@@ -710,7 +710,7 @@ export default function Citas() {
                   </div>
                   
                   {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-slate-50 dark:!bg-transparent flex justify-end">
+                  <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-slate-50 dark:bg-surface flex justify-end">
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
