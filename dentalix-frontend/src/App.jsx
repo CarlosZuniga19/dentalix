@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-// AÑADIDOS NUEVOS ICONOS PARA LA PANTALLA DE INSTALACIÓN (Download, Share, Plus, Smartphone, Monitor)
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw, Download, Share, Plus, Smartphone, Monitor } from 'lucide-react';
+// AÑADIDOS NUEVOS ICONOS PARA LA PANTALLA DE INSTALACIÓN (MonitorDown y Star para simular Chrome)
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw, Download, Share, Plus, Smartphone, Monitor, MonitorDown, Star } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -258,18 +258,43 @@ function InstallBlocker() {
           </div>
         </div>
       ) : (
-        // FALLBACK PARA SAFARI MAC O NAVEGADORES SIN SOPORTE PWA
-        <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-sm w-full">
-          <h3 className="text-dark font-bold mb-2 flex items-center justify-center gap-2">
-            <Monitor className="text-primary" /> Instalación Manual
+        // ========================================================================
+        // NUEVA INTERFAZ DE ESCRITORIO (SIMULADOR DE BARRA DE CHROME Y SAFARI MAC)
+        // ========================================================================
+        <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-md w-full">
+          <h3 className="text-dark font-bold mb-5 flex items-center justify-center gap-2">
+            <Monitor className="text-primary" /> Instalación en Computadora
           </h3>
-          <p className="text-muted text-sm">
-            Tu navegador no soporta instalación automática con 1 clic. Para instalarla:
-            <br/><br/>
-            <strong>Chrome/Edge:</strong> Ve al menú (⋮) y selecciona "Instalar Dentalix".
-            <br/>
-            <strong>Safari (Mac):</strong> Ve a Archivo {'>'} Agregar al Dock.
-          </p>
+          
+          <div className="space-y-5 text-left">
+            {/* GUÍA PARA CHROME/EDGE (SIMULANDO LA IMAGEN DEL OMNIBOX) */}
+            <div className="bg-background p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+              <h4 className="font-bold text-dark mb-2 text-sm">🌐 En Chrome o Edge (Mac y PC):</h4>
+              <p className="text-muted text-xs mb-4">
+                Busca este ícono en tu barra de direcciones (arriba a la derecha) y haz clic para instalar:
+              </p>
+              
+              {/* MOCKUP VISUAL DEL NAVEGADOR PARA QUE EL USUARIO SEPA QUÉ BUSCAR */}
+              <div className="flex items-center justify-end bg-surface border border-gray-300 dark:border-gray-600 rounded-full px-3 py-2 w-full max-w-[300px] ml-auto shadow-inner pointer-events-none">
+                 <span className="text-xs text-muted truncate mr-auto pl-2 font-mono">dentalix.lat</span>
+                 <div className="flex items-center gap-3 pr-1">
+                   {/* ÍCONO ANIMADO PARA LLAMAR LA ATENCIÓN */}
+                   <div className="relative flex items-center justify-center w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-bounce shadow-sm border border-gray-300 dark:border-gray-500">
+                     <MonitorDown size={16} className="text-dark" />
+                   </div>
+                   <Star size={16} className="text-gray-400 dark:text-gray-500" />
+                 </div>
+              </div>
+            </div>
+
+            {/* GUÍA PARA SAFARI MAC */}
+            <div className="bg-background p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
+              <h4 className="font-bold text-dark mb-2 text-sm">🍎 En Safari (Mac):</h4>
+              <p className="text-muted text-xs">
+                Safari no tiene botón rápido. Ve a la barra de menú superior, haz clic en <strong>Archivo</strong> y selecciona <strong>Agregar al Dock...</strong>
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

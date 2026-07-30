@@ -652,72 +652,75 @@ export default function Citas() {
         <div className="grid gap-3">
           {citas.length > 0 ? (
             citas.map(c => (
+              // =======================================================================
+              // DISEÑO HACKER BRUTALISTA PARA FORZAR EL CAMBIO VISUAL AL MÁXIMO
+              // =======================================================================
               <div 
                 key={c.id_cita} 
-                className="relative overflow-hidden rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm bg-danger"
+                className="relative overflow-hidden rounded-none border-8 border-dashed border-pink-500 shadow-[8px_8px_0px_#0ff] bg-black mb-6"
               >
                 {/* FONDO ROJO Y BOTÓN DE BORRAR (MÓVIL) - Visible al hacer Swipe */}
-                <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
+                <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden bg-red-600">
                   <button
                     onClick={() => eliminarCita(c.id_cita)}
-                    className="text-white w-full h-full flex flex-col items-center justify-center font-bold"
+                    className="text-white w-full h-full flex flex-col items-center justify-center font-black uppercase tracking-widest"
                   >
-                    <Trash2 size={24} className="mb-1" />
-                    <span className="text-[10px]">Eliminar</span>
+                    <Trash2 size={32} className="mb-2 animate-bounce" />
+                    <span className="text-[12px]">FUEGO</span>
                   </button>
                 </div>
 
-                {/* CONTENIDO PRINCIPAL DE LA TARJETA */}
+                {/* CONTENIDO PRINCIPAL DE LA TARJETA (ESTILO CYBERPUNK) */}
                 <div 
                   onTouchStart={handleTouchStart}
                   onTouchEnd={(e) => handleTouchEnd(e, c.id_cita)}
-                  className={`bg-white dark:bg-surface w-full relative z-10 flex flex-col transition-transform duration-300 ${swipedCita === c.id_cita ? '-translate-x-24' : 'translate-x-0'} hover:border-primary/30 dark:hover:border-primary/50`}
+                  className={`bg-gradient-to-r from-indigo-900 via-purple-900 to-black w-full relative z-10 flex flex-col transition-transform duration-300 ${swipedCita === c.id_cita ? '-translate-x-24' : 'translate-x-0'}`}
                 >
-                  {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
                   
-                  {/* Cuerpo de la tarjeta clickeable para Editar  Cita */}
+                  {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
-                    className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                    className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center cursor-pointer border-b-4 border-yellow-400 gap-4"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
-                        <div className="text-sm font-black">{c.hora.substring(0,5)}</div>
-                        <div>{c.fecha}</div>
+                    <div className="flex items-center gap-6 w-full">
+                      <div className="bg-yellow-400 text-black border-4 border-white p-4 font-black text-center min-w-[100px] shadow-[4px_4px_0px_#ff00ff] transform -rotate-3">
+                        <div className="text-2xl">{c.hora.substring(0,5)}</div>
+                        <div className="text-sm uppercase">{c.fecha}</div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-dark text-base flex items-center gap-2">
+                      <div className="flex-1">
+                        <h3 className="font-black text-white text-xl sm:text-2xl uppercase tracking-widest flex items-center gap-2 flex-wrap">
                           {c.paciente}
-                          {c.esMultiple && <span className="bg-surface dark:bg-background text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
+                          {c.esMultiple && <span className="bg-cyan-400 text-black px-3 py-1 text-xs shadow-[2px_2px_0px_white]">MÚLTIPLE</span>}
                         </h3>
-                        <p className="text-xs text-muted">{c.telefono || 'Sin teléfono'}</p>
+                        <p className="text-yellow-300 font-mono text-lg mt-1">📞 {c.telefono || 'Sin teléfono'}</p>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
-                        {c.estado || 'Programada'}
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                      <span className="bg-black text-cyan-400 border-2 border-cyan-400 shadow-[0_0_10px_#0ff] font-black text-sm px-4 py-2 uppercase tracking-widest">
+                        ⚡ {c.estado || 'Programada'}
                       </span>
                       {/* BOTÓN DE BORRAR PARA ESCRITORIO (Oculto en Móvil) */}
                       <button
                         onClick={(e) => { e.stopPropagation(); eliminarCita(c.id_cita); }}
-                        className="hidden md:flex text-gray-400 hover:text-danger p-1 transition-colors"
+                        className="hidden md:flex bg-red-500 text-white border-2 border-white p-2 hover:bg-red-600 transition-colors shadow-[2px_2px_0px_white]"
                         title="Eliminar cita"
                       >
-                        <Trash2 size={20} />
+                        <Trash2 size={24} />
                       </button>
                     </div>
                   </div>
                   
-                  {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-transparent flex justify-end">
+                  {/* Botón Inferior: WhatsApp Hackeado */}
+                  <div className="px-6 py-4 bg-black flex justify-between items-center">
+                    <span className="text-pink-500 font-black animate-pulse uppercase tracking-widest text-xs hidden sm:block">VISTA DE PRUEBA HACKER</span>
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
-                      className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
+                      className="bg-green-500 w-full sm:w-auto hover:bg-green-400 text-black border-4 border-green-300 font-black py-3 px-6 uppercase tracking-widest flex items-center justify-center gap-2 shadow-[4px_4px_0px_white] hover:translate-y-1 hover:shadow-none transition-all"
                     >
-                      <MessageCircle size={14} />
-                      Enviar Recordatorio
+                      <MessageCircle size={20} />
+                      HACK WA
                     </button>
                   </div>
                 </div>
@@ -725,7 +728,7 @@ export default function Citas() {
               </div>
             ))
           ) : (
-            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-white/5 text-center text-muted">No hay citas programadas.</div>
+            <div className="bg-black p-8 border-4 border-dashed border-yellow-400 shadow-[8px_8px_0px_#f0f] text-center text-white font-mono uppercase tracking-widest font-black text-xl">NO HAY CITAS. SISTEMA VACÍO.</div>
           )}
         </div>
       </div>
@@ -803,7 +806,7 @@ export default function Citas() {
                 className="w-1/2 p-3 bg-surface border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
               >
                 <option value="00">00</option>
-                <option value="15">15</option>
+                <option value="15">30</option>
                 <option value="30">30</option>
                 <option value="45">45</option>
               </select>
