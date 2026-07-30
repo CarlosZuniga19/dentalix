@@ -675,7 +675,7 @@ export default function Citas() {
                 >
                   {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
                   
-                  {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
+                  {/* Cuerpo de la tarjeta clickeable para Editar  Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
                     className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
