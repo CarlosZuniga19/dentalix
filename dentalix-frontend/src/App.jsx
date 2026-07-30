@@ -1,6 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-// AÑADIDOS NUEVOS ICONOS PARA LA PANTALLA DE INSTALACIÓN (MonitorDown y Star para simular Chrome)
 import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw, Download, Share, Plus, Smartphone, Monitor, MonitorDown, Star } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
@@ -13,18 +12,11 @@ import Pacientes from './Pacientes';
 import Recordatorios from './Recordatorios'; 
 import Reportes from './Reportes';
 import Consentimientos from './Consentimientos';
-import Recetas from './Recetas'; // <-- IMPORTADO EL NUEVO MÓDULO
+import Recetas from './Recetas'; 
 
-// =========================================================================
-// CONTEXTO GLOBAL: Puente para el botón flotante "Atrás" y Auto-Updater    
-// =========================================================================
 export const AppContext = createContext();
 export const useAppContext = () => useContext(AppContext);
 
-// =========================================================================
-// INTERCEPTOR GLOBAL MULTIUSUARIO
-// Agrega el usuario_id automáticamente a todas las llamadas hacia api.php
-// =========================================================================
 const originalFetch = window.fetch;
 window.fetch = async function (...args) {
   let [resource, config] = args;
@@ -43,7 +35,7 @@ window.fetch = async function (...args) {
           let bodyObj = JSON.parse(config.body);
           bodyObj.usuario_id = userId;
           config.body = JSON.stringify(bodyObj);
-        } catch(e) { /* Ignorar si no es JSON */ }
+        } catch(e) { }
       } else if (config.body instanceof FormData) {
         config.body.append('usuario_id', userId);
       }
@@ -51,15 +43,11 @@ window.fetch = async function (...args) {
   }
   return originalFetch.apply(this, [resource, config]);
 };
-// =========================================================================
 
-// =========================================================================
-// NUEVO COMPONENTE: AUTO-ACTUALIZADOR INTELIGENTE (PWA)
-// =========================================================================
 function UpdatePrompt() {
-  const { backAction } = useAppContext(); // Detecta si estamos en un formulario
+  const { backAction } = useAppContext(); 
   const [workerEsperando, setWorkerEsperando] = useState(null);
-  const [autoActualizando, setAutoActualizando] = useState(false); // NUEVO ESTADO VISUAL
+  const [autoActualizando, setAutoActualizando] = useState(false); 
   const location = useLocation(); 
 
   useEffect(() => {
@@ -67,7 +55,6 @@ function UpdatePrompt() {
 
     let recargando = false;
     
-    // Escucha el cambio y fuerza la recarga de la app
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!recargando) {
         recargando = true;
@@ -96,7 +83,6 @@ function UpdatePrompt() {
 
     revisarActualizaciones();
 
-    // Revisor temporal agresivo (cada 3 min)
     const intervalo = setInterval(() => {
       navigator.serviceWorker.ready.then(reg => reg.update());
     }, 3 * 60 * 1000);
@@ -104,7 +90,6 @@ function UpdatePrompt() {
     return () => clearInterval(intervalo);
   }, []);
 
-  // Check silencioso al cambiar de ruta
   useEffect(() => {
     if ('serviceWorker' in navigator && !workerEsperando) {
       navigator.serviceWorker.ready.then(reg => {
@@ -113,18 +98,15 @@ function UpdatePrompt() {
     }
   }, [location.pathname, workerEsperando]);
 
-  // EL CEREBRO: Aplica la actualización con una micro-pausa visual
   useEffect(() => {
     if (workerEsperando && !backAction) {
-      // En lugar de ser un fantasma, mostramos que estamos instalando la mejora
       setAutoActualizando(true);
       setTimeout(() => {
         workerEsperando.postMessage({ type: 'SKIP_WAITING' });
-      }, 1500); // Pantalla visible por 1.5 segundos
+      }, 1500); 
     }
   }, [workerEsperando, backAction]);
 
-  // PANTALLA DE CARGA DEL AUTO-ACTUALIZADOR SILENCIOSO
   if (autoActualizando) {
     return (
       <div className="fixed inset-0 bg-background/90 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
@@ -139,10 +121,8 @@ function UpdatePrompt() {
     );
   }
 
-  // Si no hay worker, no renderiza nada
   if (!workerEsperando) return null;
 
-  // Solo sale el botón si el doctor está llenando un formulario para evitar que pierda sus datos
   return (
     <div className="fixed top-6 left-0 w-full flex justify-center z-[9999]">
       <button 
@@ -158,9 +138,7 @@ function UpdatePrompt() {
     </div>
   );
 }
-// =========================================================================
 
-// Helper para esconder el botón Atrás automáticamente si el usuario cambia de menú
 function RouteChangeListener({ setBackAction }) {
   const location = useLocation();
   useEffect(() => {
@@ -169,15 +147,11 @@ function RouteChangeListener({ setBackAction }) {
   return null;
 }
 
-// =========================================================================
-// NUEVO COMPONENTE: CADENERO / BLOQUEADOR DE INSTALACIÓN
-// =========================================================================
 function InstallBlocker() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [deviceType, setDeviceType] = useState('desktop');
 
   useEffect(() => {
-    // 1. Detectamos el tipo de dispositivo
     const ua = navigator.userAgent.toLowerCase();
     if (/iphone|ipad|ipod/.test(ua)) {
       setDeviceType('ios');
@@ -187,7 +161,6 @@ function InstallBlocker() {
       setDeviceType('desktop');
     }
 
-    // 2. Interceptamos el evento nativo de instalación (Chrome/Edge/Android)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -202,7 +175,7 @@ function InstallBlocker() {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        setDeferredPrompt(null); // Ocultamos el botón si aceptó
+        setDeferredPrompt(null); 
       }
     }
   };
@@ -221,9 +194,7 @@ function InstallBlocker() {
         Por seguridad y rendimiento, Dentalix solo funciona como una aplicación nativa. Instálala en tu dispositivo para acceder.
       </p>
 
-      {/* LÓGICA DE BOTONES SEGÚN DISPOSITIVO Y SOPORTE */}
       {deferredPrompt ? (
-        // SI EL NAVEGADOR SOPORTA INSTALACIÓN DIRECTA (Android, Chrome PC, Edge PC)
         <button 
           onClick={handleInstallClick}
           className="bg-primary text-white px-8 py-4 rounded-full font-bold text-lg shadow-[0_10px_30px_rgba(var(--color-primary-rgb),0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
@@ -232,7 +203,6 @@ function InstallBlocker() {
           Instalar Aplicación Ahora
         </button>
       ) : deviceType === 'ios' ? (
-        // SI ES IPHONE / IPAD (Apple bloquea la instalación directa)
         <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-sm w-full">
           <h3 className="text-dark font-bold mb-4 flex items-center justify-center gap-2">
             <Smartphone className="text-primary" /> Instrucciones para iOS
@@ -258,27 +228,21 @@ function InstallBlocker() {
           </div>
         </div>
       ) : (
-        // ========================================================================
-        // NUEVA INTERFAZ DE ESCRITORIO (SIMULADOR DE BARRA DE CHROME Y SAFARI MAC)
-        // ========================================================================
         <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-md w-full">
           <h3 className="text-dark font-bold mb-5 flex items-center justify-center gap-2">
             <Monitor className="text-primary" /> Instalación en Computadora
           </h3>
           
           <div className="space-y-5 text-left">
-            {/* GUÍA PARA CHROME/EDGE (SIMULANDO LA IMAGEN DEL OMNIBOX) */}
             <div className="bg-background p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
               <h4 className="font-bold text-dark mb-2 text-sm">🌐 En Chrome o Edge (Mac y PC):</h4>
               <p className="text-muted text-xs mb-4">
                 Busca este ícono en tu barra de direcciones (arriba a la derecha) y haz clic para instalar:
               </p>
               
-              {/* MOCKUP VISUAL DEL NAVEGADOR PARA QUE EL USUARIO SEPA QUÉ BUSCAR */}
               <div className="flex items-center justify-end bg-surface border border-gray-300 dark:border-gray-600 rounded-full px-3 py-2 w-full max-w-[300px] ml-auto shadow-inner pointer-events-none">
                  <span className="text-xs text-muted truncate mr-auto pl-2 font-mono">dentalix.lat</span>
                  <div className="flex items-center gap-3 pr-1">
-                   {/* ÍCONO ANIMADO PARA LLAMAR LA ATENCIÓN */}
                    <div className="relative flex items-center justify-center w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-bounce shadow-sm border border-gray-300 dark:border-gray-500">
                      <MonitorDown size={16} className="text-dark" />
                    </div>
@@ -287,7 +251,6 @@ function InstallBlocker() {
               </div>
             </div>
 
-            {/* GUÍA PARA SAFARI MAC */}
             <div className="bg-background p-4 rounded-2xl border border-gray-200 dark:border-gray-700">
               <h4 className="font-bold text-dark mb-2 text-sm">🍎 En Safari (Mac):</h4>
               <p className="text-muted text-xs">
@@ -300,12 +263,10 @@ function InstallBlocker() {
     </div>
   );
 }
-// =========================================================================
 
 function Layout({ children, nombreClinica, logoClinica, backAction }) {
-  // Observador en tiempo real para que los componentes cambien cuando el sistema cambia de tema
   const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
-  const currentUserId = localStorage.getItem('dentalix_usuario_id'); // Detectar usuario actual
+  const currentUserId = localStorage.getItem('dentalix_usuario_id'); 
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -318,42 +279,50 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
   return (
     <div className="flex h-screen bg-surface overflow-hidden transition-colors duration-300 relative">
       
-      {/* INYECCIÓN DEL TEMA OSCURO PREMIUM (SLATE THEME) */}
       <style>{`
         /* ESTILOS GLOBALES MEJORADOS PARA MODO OSCURO */
         html.dark {
           color-scheme: dark;
         }
         html.dark body, html.dark .bg-background {
-          background-color: #0f172a !important; /* Fondo profundo Premium (Slate 900) */
+          background-color: #0f172a !important; 
         }
         html.dark .bg-surface {
-          background-color: #1e293b !important; /* Tarjetas límpias (Slate 800) */
+          background-color: #1e293b !important; 
         }
         html.dark .border-gray-100, 
         html.dark .border-gray-200 {
-          border-color: #334155 !important; /* Bordes sutiles elegantes (Slate 700) */
+          border-color: #334155 !important; 
         }
         html.dark .text-dark {
-          color: #f8fafc !important; /* Texto principal impecable (Slate 50) */
+          color: #f8fafc !important; 
         }
         html.dark .text-muted {
-          color: #94a3b8 !important; /* Texto secundario legible (Slate 400) */
+          color: #94a3b8 !important; 
         }
         html.dark input, html.dark textarea, html.dark select {
-          background-color: #0f172a !important; /* Cajas de texto más oscuras para contrastar */
+          background-color: #0f172a !important; 
           border-color: #334155 !important;
           color: #f8fafc !important;
         }
         html.dark .shadow-sm, html.dark .shadow-md, html.dark .shadow-xl {
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5) !important;
         }
+
+        /* ======================================================= */
+        /* BYPASS MAESTRO PARA EL CACHÉ DE SAFARI (TARJETAS)       */
+        /* ======================================================= */
+        .tarjeta-footer {
+          background-color: #f8fafc !important; /* bg-slate-50 seguro para modo claro */
+        }
+        html.dark .tarjeta-footer {
+          background-color: transparent !important; /* Hereda el bg-surface en modo oscuro */
+          border-color: #334155 !important; 
+        }
       `}</style>
 
-      {/* MONTAJE DEL COMPONENTE DE ACTUALIZACIÓN */}
       <UpdatePrompt />
 
-      {/* MENÚ LATERAL ESCRITORIO (Oculto en móvil) */}
       <nav className="hidden md:flex fixed md:static top-0 left-0 h-full w-64 bg-background border-r border-gray-200 p-4 z-30 flex-col transition-transform duration-300 ease-in-out">
         <Link to="/" className="text-primary font-bold text-2xl mb-8 text-center mt-4 block hover:opacity-80 transition-opacity flex justify-center items-center h-16">
           {logoClinica ? (
@@ -369,13 +338,11 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
         <NavItem to="/citas" icon={<ClipboardList />} label="Citas" />
         <NavItem to="/pacientes" icon={<Users />} label="Pacientes" />
         
-        {/* NUEVA PESTAÑA RECETAS (Antes de procedimientos) */}
         <NavItem to="/recetas" icon={<Pill />} label="Recetas" />
         
         <NavItem to="/procedimientos" icon={<Stethoscope />} label="Procedimientos" />
         <NavItem to="/reportes" icon={<BarChart3 />} label="Reportes" />
         
-        {/* Solo el usuario 1 ve la pestaña de Consentimientos */}
         {currentUserId === '1' && (
           <NavItem to="/consentimientos" icon={<FileText />} label="Consentimientos" />
         )}
@@ -383,14 +350,10 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
         <NavItem to="/ajustes" icon={<Settings />} label="Ajustes" />
       </nav>
 
-      {/* ÁREA DE CONTENIDO (Márgenes superiores eliminados para vista inmersiva) */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto mb-28 md:mb-0 bg-surface relative">
         {children}
       </main>
 
-      {/* ========================================================= */}
-      {/* BOTÓN FLOTANTE GLOBAL "ATRÁS" (Se activa desde las vistas) */}
-      {/* ========================================================= */}
       {backAction && (
         <button 
           onClick={backAction}
@@ -401,7 +364,6 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
         </button>
       )}
 
-      {/* BARRA INFERIOR FLOTANTE TIPO CÁPSULA (Estilo iOS) */}
       <div className="md:hidden fixed bottom-6 left-0 w-full px-4 z-50 flex justify-center pointer-events-none">
         <nav 
           className={
@@ -418,13 +380,11 @@ function Layout({ children, nombreClinica, logoClinica, backAction }) {
             <MobileNavItem to="/citas" icon={<ClipboardList size={22} />} label="Citas" />
             <MobileNavItem to="/pacientes" icon={<Users size={22} />} label="Pacientes" />
             
-            {/* NUEVA PESTAÑA RECETAS EN MÓVIL */}
             <MobileNavItem to="/recetas" icon={<Pill size={22} />} label="Recetas" />
             
             <MobileNavItem to="/procedimientos" icon={<Stethoscope size={22} />} label="Procedimientos" />
             <MobileNavItem to="/reportes" icon={<BarChart3 size={22} />} label="Reportes" />
             
-            {/* Solo el usuario 1 ve la pestaña de Consentimientos en móvil */}
             {currentUserId === '1' && (
               <MobileNavItem to="/consentimientos" icon={<FileText size={22} />} label="Consentimientos" />
             )}
@@ -460,16 +420,12 @@ export default function App() {
   const [nombreClinica, setNombreClinica] = useState('Dentalix');
   const [logoClinica, setLogoClinica] = useState(null);
   
-  // =========================================================================
-  // NUEVO ESTADO: DETECCIÓN DE INSTALACIÓN (STANDALONE)
-  // =========================================================================
   const [isStandalone, setIsStandalone] = useState(
     window.matchMedia('(display-mode: standalone)').matches || 
     window.navigator.standalone === true ||
-    window.location.hostname === 'localhost' // Bypass para no bloquearte en desarrollo local
+    window.location.hostname === 'localhost' 
   );
   
-  // Estado que controla la acción del botón Atrás global
   const [backAction, setBackAction] = useState(null);
 
   const oscurecerColor = (hex, factor = 0.15) => {
@@ -485,7 +441,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    // BLOQUEO DE ZOOM EN MÓVILES
     let viewport = document.querySelector('meta[name="viewport"]');
     if (!viewport) {
       viewport = document.createElement('meta');
@@ -494,7 +449,6 @@ export default function App() {
     }
     viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0';
 
-    // --- DETECCIÓN AUTOMÁTICA DEL MODO OSCURO DEL SISTEMA (iOS/Android/Mac) ---
     const systemDarkQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
     const aplicarTema = () => {
@@ -517,7 +471,6 @@ export default function App() {
     };
     systemDarkQuery.addEventListener('change', listenerModoOscuro);
 
-    // --- ESCUCHADOR DE CAMBIO A MODO STANDALONE ---
     const standaloneQuery = window.matchMedia('(display-mode: standalone)');
     const handleStandaloneChange = (e) => {
       setIsStandalone(e.matches || window.navigator.standalone === true);
@@ -554,7 +507,6 @@ export default function App() {
           document.documentElement.style.setProperty('--color-primary-hover', oscurecerColor(colores.primary));
           localStorage.setItem('dentalix_color_primario', colores.primary);
         }
-        // NUEVO: CARGAMOS LOS DATOS LEGALES EN CACHÉ AL ENTRAR A LA APP
         if(data.cedula) localStorage.setItem('dentalix_cedula', data.cedula);
         if(data.universidad) localStorage.setItem('dentalix_universidad', data.universidad);
         if(data.firma_doctor) localStorage.setItem('dentalix_firma_doctor', data.firma_doctor);
@@ -579,9 +531,6 @@ export default function App() {
     setIsAuthenticated(false);
   };
 
-  // =========================================================================
-  // EL CADENERO EN ACCIÓN: Si no es app nativa, no pasa.
-  // =========================================================================
   if (!isStandalone) return <InstallBlocker />;
 
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
@@ -597,7 +546,7 @@ export default function App() {
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/citas" element={<Citas />} />
             <Route path="/pacientes" element={<Pacientes />} />
-            <Route path="/recetas" element={<Recetas />} />  {/* <-- RUTA NUEVA */}
+            <Route path="/recetas" element={<Recetas />} />  
             <Route path="/procedimientos" element={<Procedimientos />} />
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/consentimientos" element={<Consentimientos />} />
@@ -608,4 +557,3 @@ export default function App() {
     </AppContext.Provider>
   );
 }
-// forzando actualizacion del servidor

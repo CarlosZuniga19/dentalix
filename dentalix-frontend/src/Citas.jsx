@@ -7,7 +7,7 @@ import { useAppContext } from './App';
 
 const ANAMNESIS_ITEMS = [ "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas" ];
 const DIENTES_ADULTOS = [ 18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28, 48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38 ];
-const CONDICIONES_DENTALES = []; // Arreglo vacío necesario para evitar que el bloque del odontograma crashee
+const CONDICIONES_DENTALES = []; 
 
 export default function Citas() {
   const [vista, setVista] = useState('lista'); 
@@ -22,47 +22,38 @@ export default function Citas() {
   const API_URL = 'https://dentalix.lat/api.php';
   const { setBackAction } = useAppContext();
 
-  // ============================================================================
-  // LÓGICA DE ASIGNACIÓN AUTOMÁTICA DE DOCTOR POR USUARIO
-  // ============================================================================
   const currentUserId = localStorage.getItem('dentalix_usuario_id') || '1';
   let doctorPorDefecto = 'Dra. Hasdra Guerrero';
   
   if (currentUserId === '2') {
     doctorPorDefecto = 'Dra. Valeria Ramírez';
   } else if (currentUserId !== '1') {
-    // Si es un nuevo usuario (> 2), intenta leer su nombre, sino usa un texto genérico
     doctorPorDefecto = localStorage.getItem('dentalix_user_name') || 'Doctor Titular';
   }
-  // ============================================================================
 
   const [idCitaEditando, setIdCitaEditando] = useState(null);
   const [fecha, setFecha] = useState('');
   
-  // NUEVOS ESTADOS PARA HORA
   const [horaCombo, setHoraCombo] = useState('08');
   const [minutoCombo, setMinutoCombo] = useState('00');
   
-  const [profesional, setProfesional] = useState(doctorPorDefecto); // Inicializa con el doctor detectado
+  const [profesional, setProfesional] = useState(doctorPorDefecto); 
   const [estadoCita, setEstadoCita] = useState(['programado']);
   const [datosPaciente, setDatosPaciente] = useState({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
   const [procedimientosSeleccionados, setProcedimientosSeleccionados] = useState([]);
   const [abono, setAbono] = useState('');
   const [anamnesis, setAnamnesis] = useState(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
 
-  // ================= ESTADOS DEL NUEVO POPUP DE PROCEDIMIENTOS (MULTIPLE) =================
   const [modalProcedimientos, setModalProcedimientos] = useState(false);
   const [procTemp, setProcTemp] = useState(null);
-  const [dientesSeleccionados, setDientesSeleccionados] = useState([]); // Ahora es un arreglo
-  const [editandoProcIndex, setEditandoProcIndex] = useState(null); // Rastrea qué índice de la tabla estamos editando
+  const [dientesSeleccionados, setDientesSeleccionados] = useState([]); 
+  const [editandoProcIndex, setEditandoProcIndex] = useState(null); 
 
-  // Estados para Firma Digital en Presupuesto
   const canvasRef = useRef(null);
   const [dibujando, setDibujando] = useState(false);
   const [canvasTieneTrazos, setCanvasTieneTrazos] = useState(false);
   const [firmaBase64, setFirmaBase64] = useState(null);
 
-  // Estados y Lógica para Deslizar (Swipe) la Cita en Móviles
   const [swipedCita, setSwipedCita] = useState(null);
   const touchStartX = useRef(0);
 
@@ -75,15 +66,12 @@ export default function Citas() {
     const diff = touchStartX.current - touchEndX;
 
     if (diff > 40) {
-      // Swipe hacia la izquierda: abrir menú de basura
       setSwipedCita(id_cita);
     } else if (diff < -40 && swipedCita === id_cita) {
-      // Swipe hacia la derecha: cerrar menú de basura
       setSwipedCita(null);
     }
   };
 
-  // Construimos el historial para que el odontograma pinte TODOS los dientes seleccionados a la vez
   const historialOdontograma = {};
   if (procTemp && dientesSeleccionados.length > 0) {
     dientesSeleccionados.forEach(d => {
@@ -92,17 +80,14 @@ export default function Citas() {
   }
 
   const setDienteActivoHistorial = (diente) => {
-    // Agrega o quita el diente de la selección múltiple
     setDientesSeleccionados(prev => 
       prev.includes(diente) ? prev.filter(d => d !== diente) : [...prev, diente]
     );
   };
 
-  const dienteActivoHistorial = null; // Fuerza a que el sub-modal interno del odontograma nunca se abra aquí
+  const dienteActivoHistorial = null; 
   const aplicarCondicionDental = () => {}; 
-  // ============================================================================
 
-  // --- LÓGICA INTELIGENTE DE WHATSAPP ---
   const getFechaHoyLocal = () => {
     const curr = new Date();
     const yyyy = curr.getFullYear();
@@ -112,7 +97,7 @@ export default function Citas() {
   };
 
   const abrirWhatsAppRecordatorio = (e, telefono, paciente, fechaCita, horaCita) => {
-    if (e) e.stopPropagation(); // Evita que se abra el modal de editar cita si hacemos clic en la tarjeta de la lista
+    if (e) e.stopPropagation(); 
     
     if (!telefono) {
       alert("El paciente no tiene un número de teléfono registrado.");
@@ -148,9 +133,7 @@ export default function Citas() {
     const url = `https://wa.me/${num}?text=${encodeURIComponent(textoWa)}`;
     window.open(url, '_blank');
   };
-  // ----------------------------------------
 
-  // --- LÓGICA DE EVENTOS PARA EL CANVAS DE FIRMA ---
   const iniciarDibujo = (e) => {
     e.target.setPointerCapture(e.pointerId);
     const canvas = canvasRef.current;
@@ -197,9 +180,6 @@ export default function Citas() {
     }
   };
 
-  // ============================================================================
-  // FUNCIONES DE CONTROL DE ESTADO
-  // ============================================================================
   const recargarCitas = () => {
     fetch(`${API_URL}?accion=citas_lista`)
       .then(res => res.json())
@@ -223,7 +203,7 @@ export default function Citas() {
     setIdCitaEditando(null);
     setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '', direccion: '', ocupacion: '', motivo: '' });
     setFecha(''); 
-    setHoraCombo('08'); // Reset combos hora
+    setHoraCombo('08'); 
     setMinutoCombo('00');
     setEstadoCita(['programado']);
     setProfesional(doctorPorDefecto); 
@@ -249,7 +229,6 @@ export default function Citas() {
     setIdCitaEditando(c.id_cita);
     setFecha(c.fecha);
     
-    // Parseamos la hora guardada (ej. "09:30:00") a los combos
     if (c.hora) {
       const partesHora = c.hora.split(':');
       if (partesHora.length >= 2) {
@@ -264,7 +243,6 @@ export default function Citas() {
       setAbono(c.abono);
     }
 
-    // NUEVO: Cargar firma de la cita/presupuesto si existe
     if (c.firma_cita) {
       setFirmaBase64(c.firma_cita);
     } else {
@@ -291,7 +269,6 @@ export default function Citas() {
           if (existente) {
             existente.cantidad += 1;
           } else {
-            // Re-convertimos el string guardado a un arreglo (si venía como "14, 15")
             let arrDientes = [];
             if (proc.diente) {
               arrDientes = proc.diente.toString().split(',').map(d => parseInt(d.trim())).filter(d => !isNaN(d));
@@ -307,7 +284,6 @@ export default function Citas() {
     setVista('nueva_cita');
   };
 
-  // NUEVO BOTÓN: Ir a módulo de recetas con el paciente actual
   const irARecetas = () => {
     if (!datosPaciente.nombre) {
       alert("Selecciona o crea un paciente primero para recetarle.");
@@ -316,7 +292,6 @@ export default function Citas() {
     navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
   };
 
-  // NUEVA FUNCIÓN: ELIMINAR CITA (API CALL)
   const eliminarCita = (idCita) => {
     if (!window.confirm("¿Estás seguro de que deseas eliminar esta cita? Esta acción no se puede deshacer y borrará los procedimientos asociados a esta cotización.")) return;
     
@@ -344,11 +319,6 @@ export default function Citas() {
     });
   };
 
-  // ============================================================================
-  // EFECTOS Y CONTROLADORES DE RUTA
-  // ============================================================================
-  
-  // EFECTO 1: Control del botón Atrás Global
   useEffect(() => {
     if (vista !== 'lista') {
       setBackAction(() => () => {
@@ -362,14 +332,12 @@ export default function Citas() {
     return () => setBackAction(null);
   }, [vista, navigate, setBackAction]);
 
-  // EFECTO 2: Recarga de datos principales cuando el usuario vuelve a la vista 'lista'
   useEffect(() => {
     recargarCitas();
     fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setPacientesExistentes(data || []));
     fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
   }, [vista]);
 
-  // EFECTO 3: Vigilante de enrutamiento (Atrapa cuando vienes del calendario o de pacientes)
   useEffect(() => {
     if (location.state?.citaIdParaEditar) {
       fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => {
@@ -394,8 +362,6 @@ export default function Citas() {
     }
   }, [location.state, navigate]);
 
-  // ============================================================================
-
   const pacientesFiltrados = pacientesExistentes.filter(p => p.nombre.toLowerCase().includes(busquedaPaciente.toLowerCase())).slice(0, 10);
 
   const totalProcedimientos = procedimientosSeleccionados.reduce((sum, proc) => sum + (parseFloat(proc.precio_base || 0) * (proc.cantidad || 1)), 0);
@@ -405,7 +371,7 @@ export default function Citas() {
     if (!datosPaciente.nombre) { alert("Debes seleccionar o escribir un paciente."); return; }
     if (!fecha || !horaCombo || !minutoCombo) { alert("Fecha y hora son obligatorios."); return; }
 
-    const horaFinal = `${horaCombo}:${minutoCombo}`; // Concatenamos la hora final
+    const horaFinal = `${horaCombo}:${minutoCombo}`; 
 
     const procedimientosExpandidos = [];
     procedimientosSeleccionados.forEach(p => {
@@ -415,13 +381,11 @@ export default function Citas() {
           precio_base: p.precio_base,
           fecha_procedimiento: fecha,
           hora_procedimiento: horaFinal,
-          // Convertimos el arreglo de vuelta a un texto separado por comas para enviarlo al API
           diente: (p.dientes && p.dientes.length > 0) ? p.dientes.join(', ') : null 
         });
       }
     });
 
-    // NUEVO: Capturar firma antes de guardar la cita
     let finalSignatureCita = firmaBase64;
     if (canvasRef.current && canvasTieneTrazos) {
       finalSignatureCita = canvasRef.current.toDataURL('image/png');
@@ -461,8 +425,7 @@ export default function Citas() {
   const generarPresupuestoPDF = () => {
     const doc = new jsPDF();
     
-    // Obtenemos los ajustes de la BD (Caché local)
-    let primaryColor = [139, 92, 246]; // Morado por defecto
+    let primaryColor = [139, 92, 246]; 
     const colorCache = localStorage.getItem('dentalix_color_primario');
     if (colorCache) {
       const hex = colorCache.replace('#', '');
@@ -483,7 +446,6 @@ export default function Citas() {
     doc.setFontSize(22);
     doc.text("PRESUPUESTO DENTAL", 14, 23);
     
-    // Inyección del Logo de la Clínica si existe, o el nombre como respaldo
     if (logoCache) {
       doc.addImage(logoCache, 'PNG', 160, 5, 35, 25);
     } else {
@@ -567,7 +529,6 @@ export default function Citas() {
     doc.setFontSize(9);
     doc.text("Gracias por elegir nuestra clínica.", 14, finalY + 10);
     
-    // --- FIRMA DIGITAL EN EL PRESUPUESTO PDF ---
     let yFirma = finalY + 30;
     
     let finalSignatureToPrint = firmaBase64;
@@ -581,11 +542,10 @@ export default function Citas() {
     }
 
     if (finalSignatureToPrint) {
-      // Ajustamos la posición para que quede centrada bajo los totales o en medio
       doc.addImage(finalSignatureToPrint, 'PNG', 125, yFirma, 60, 30);
       yFirma += 30;
     } else {
-      yFirma += 25; // Espacio por si lo quieren firmar a mano con pluma
+      yFirma += 25; 
     }
 
     doc.setDrawColor(0, 0, 0);
@@ -608,7 +568,6 @@ export default function Citas() {
 
   const editarProcedimiento = (idx) => {
     const procGuardado = procedimientosSeleccionados[idx];
-    // Buscamos el original en el catálogo para tener todo su color y propiedades, o usamos el guardado
     const original = catalogoProcedimientos.find(p => p.id === procGuardado.id) || procGuardado;
     
     setProcTemp(original);
@@ -623,7 +582,6 @@ export default function Citas() {
       return;
     }
     
-    // Si estamos editando, mantenemos la cantidad que tenía, sino le ponemos 1
     const cantidadExistente = editandoProcIndex !== null ? procedimientosSeleccionados[editandoProcIndex].cantidad : 1;
     
     const nuevoProc = { ...procTemp, cantidad: cantidadExistente, dientes: dientesSeleccionados };
@@ -656,7 +614,6 @@ export default function Citas() {
                 key={c.id_cita} 
                 className="relative overflow-hidden rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm bg-danger"
               >
-                {/* FONDO ROJO Y BOTÓN DE BORRAR (MÓVIL) - Visible al hacer Swipe */}
                 <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
                   <button
                     onClick={() => eliminarCita(c.id_cita)}
@@ -667,7 +624,6 @@ export default function Citas() {
                   </button>
                 </div>
 
-                {/* CONTENIDO PRINCIPAL DE LA TARJETA */}
                 <div 
                   onTouchStart={handleTouchStart}
                   onTouchEnd={(e) => handleTouchEnd(e, c.id_cita)}
@@ -675,7 +631,6 @@ export default function Citas() {
                 >
                   {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
                   
-                  {/* Cuerpo de la tarjeta clickeable para Editar  Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
                     className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
@@ -698,7 +653,6 @@ export default function Citas() {
                       <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
                         {c.estado || 'Programada'}
                       </span>
-                      {/* BOTÓN DE BORRAR PARA ESCRITORIO (Oculto en Móvil) */}
                       <button
                         onClick={(e) => { e.stopPropagation(); eliminarCita(c.id_cita); }}
                         className="hidden md:flex text-gray-400 hover:text-danger p-1 transition-colors"
@@ -709,8 +663,7 @@ export default function Citas() {
                     </div>
                   </div>
                   
-                  {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-slate-50 dark:bg-surface flex justify-end">
+                  <div className="px-4 py-3 border-t border-gray-100 tarjeta-footer flex justify-end">
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
@@ -738,7 +691,6 @@ export default function Citas() {
         <X size={18} /> Cancelar y regresar a la lista
       </button>
 
-      {/* Buscador Superior */}
       <div className="bg-white dark:bg-surface p-6 rounded-3xl shadow-sm border-2 border-primary/20 relative">
         <h2 className="text-sm font-black text-primary uppercase mb-2">Buscador de Pacientes Registrados</h2>
         <div className="relative">
@@ -764,7 +716,6 @@ export default function Citas() {
 
       <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 dark:border-white/5 p-6 sm:p-8 space-y-10">
         
-        {/* === SECCIÓN BOTONERA SUPERIOR (Solo si hay paciente) === */}
         {datosPaciente.nombre && (
           <section className="flex flex-col sm:flex-row gap-3 justify-end border-b pb-4">
             <button 
@@ -782,7 +733,6 @@ export default function Citas() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
           <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border-gray-200 rounded-full text-dark" /></div>
           
-          {/* NUEVOS DROPDOWNS PARA LA HORA (8 AM a 20 PM) */}
           <div>
             <label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label>
             <div className="flex gap-2 w-full">
@@ -810,7 +760,6 @@ export default function Citas() {
             </div>
           </div>
           
-          {/* NUEVO DROPDOWN DE PROFESIONAL */}
           <div>
             <label className="block text-sm font-medium text-muted mb-1 ml-2">Profesional</label>
             <select 
@@ -848,7 +797,6 @@ export default function Citas() {
           </div>
         </section>
 
-        {/* --- PROCEDIMIENTOS ASIGNADOS CON POPUP --- */}
         <section>
           <div className="flex justify-between items-center mb-4 border-b pb-2">
             <h2 className="text-xl font-bold text-dark flex items-center gap-2">
@@ -861,7 +809,7 @@ export default function Citas() {
           </div>
 
           {procedimientosSeleccionados.length > 0 ? (
-            <div className="p-4 bg-slate-50 dark:bg-transparent rounded-xl border border-gray-200 dark:border-gray-800">
+            <div className="p-4 rounded-xl border border-gray-200 tarjeta-footer">
               {procedimientosSeleccionados.map((p, idx) => (
                 <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white dark:bg-surface p-3 rounded-lg border shadow-sm gap-3">
                   <div className="font-bold text-dark flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -921,7 +869,6 @@ export default function Citas() {
             </button>
           </div>
           
-          {/* --- SECCIÓN DE FIRMA DIGITAL PARA PRESUPUESTO MOVIDA AL FINAL --- */}
           <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/40 rounded-2xl flex flex-col justify-between">
             <span className="text-xs font-bold text-blue-800 dark:text-blue-400">FIRMA DEL PACIENTE PARA COTIZACIÓN</span>
             <p className="text-xs text-muted my-2">Si deseas imprimir el presupuesto ya firmado, pídele al paciente que dibuje su firma aquí abajo.</p>
@@ -966,7 +913,6 @@ export default function Citas() {
           </div>
         </section>
 
-        {/* --- PAGOS CON BOTÓN DE APLICAR ABONO --- */}
         <section className="p-5 bg-surface border-gray-200 rounded-2xl">
           <label className="block text-sm font-medium text-muted mb-2">Monto a Cobrar / Abonar en Caja</label>
           <div className="flex flex-col sm:flex-row gap-3 mb-3">
@@ -997,9 +943,6 @@ export default function Citas() {
         )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* POPUP DE PROCEDIMIENTO INDIVIDUAL + ODONTOGRAMA (Z-INDEX 60 PARA MÓVIL)    */}
-      {/* ========================================================================= */}
       {modalProcedimientos && (
         <div className="fixed inset-0 bg-dark/60 z-[60] flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white dark:bg-surface rounded-3xl p-5 w-full max-w-5xl shadow-2xl flex flex-col mt-auto mb-auto max-h-[90vh]">
@@ -1032,17 +975,14 @@ export default function Citas() {
 
               {procTemp && (
                 <div className="border-t pt-4">
-                  {/* === BLOQUE EXACTO DEL ODONTOGRAMA === */}
                   <section className="w-full py-6">
                     <div className="px-2 sm:px-8 mb-8">
                       <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
                       <p className="text-xs text-muted">Toca uno o varios dientes para asignarles este padecimiento.</p>
                     </div>
 
-                    {/* Contenedor Flex: Proporción anatómica natural, números desamontonados y dientes enormes */}
                     <div className="w-full flex flex-col gap-12 sm:gap-20 items-center overflow-x-hidden px-2">
 
-                      {/* FILA SUPERIOR (Maxilar) - Alineación inferior (items-end) proporcional */}
                       <div className="flex justify-between items-end w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pt-6">
                         {DIENTES_ADULTOS.slice(0, 16).map(diente => {
                           const condicion = historialOdontograma[diente];
@@ -1052,7 +992,6 @@ export default function Citas() {
                           return (
                             <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="relative flex flex-col items-center justify-end shrink min-w-0 group outline-none p-0 bg-transparent border-none">
                               
-                              {/* Número absoluto arriba: Flota para no romper el ancho ni amontonarse */}
                               <span className="absolute bottom-full mb-1 sm:mb-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
 
                               <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
@@ -1084,14 +1023,12 @@ export default function Citas() {
                         })}
                       </div>
 
-                      {/* FILA INFERIOR (Mandíbula) - Alineación superior (items-start) proporcional */}
                       <div className="flex justify-between items-start w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pb-6">
                         {DIENTES_ADULTOS.slice(16, 32).map(diente => {
                           const condicion = historialOdontograma[diente];
                           const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
                           const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
                           
-                          // Separación quirúrgica solo para los dientes estrechos del centro abajo
                           const isMiddleBottom = [43, 42, 41, 31, 32, 33].includes(diente);
 
                           return (
@@ -1122,7 +1059,6 @@ export default function Citas() {
                                 />
                               </div>
 
-                              {/* Número absoluto abajo: Flota para no romper el ancho ni amontonarse */}
                               <span className="absolute top-full mt-1 sm:mt-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
                             
                             </button>
@@ -1132,7 +1068,6 @@ export default function Citas() {
 
                     </div>
 
-                    {/* MODAL DE ODONTOGRAMA A PANTALLA COMPLETA */}
                     {dienteActivoHistorial && (
                       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-surface rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
@@ -1156,7 +1091,6 @@ export default function Citas() {
                       </div>
                     )}
                   </section>
-                  {/* === FIN DEL BLOQUE EXACTO === */}
                 </div>
               )}
 
