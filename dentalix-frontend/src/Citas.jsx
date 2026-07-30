@@ -678,7 +678,7 @@ export default function Citas() {
                   {/* Cuerpo de la tarjeta clickeable para Editar  Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
-                    className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                    className="p-4 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-4">
                       <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
@@ -710,7 +710,7 @@ export default function Citas() {
                   </div>
                   
                   {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 flex justify-end">
+                  <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-slate-50 dark:!bg-transparent flex justify-end">
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
@@ -725,7 +725,7 @@ export default function Citas() {
               </div>
             ))
           ) : (
-            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-white/5 text-center text-muted">No hay citas programadas.</div>
+            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-gray-800 text-center text-muted">No hay citas programadas.</div>
           )}
         </div>
       </div>
@@ -861,7 +861,7 @@ export default function Citas() {
           </div>
 
           {procedimientosSeleccionados.length > 0 ? (
-            <div className="p-4 bg-slate-50 dark:bg-background/50 rounded-xl border border-gray-200 dark:border-gray-800">
+            <div className="p-4 bg-slate-50 dark:bg-transparent rounded-xl border border-gray-200 dark:border-gray-800">
               {procedimientosSeleccionados.map((p, idx) => (
                 <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between text-sm mb-3 bg-white dark:bg-surface p-3 rounded-lg border shadow-sm gap-3">
                   <div className="font-bold text-dark flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
