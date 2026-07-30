@@ -649,12 +649,12 @@ export default function Citas() {
           </button>
         </div>
 
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {citas.length > 0 ? (
             citas.map(c => (
               <div 
                 key={c.id_cita} 
-                className="relative overflow-hidden rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm bg-danger"
+                className="relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 shadow-md bg-danger"
               >
                 {/* FONDO ROJO Y BOTÓN DE BORRAR (MÓVIL) - Visible al hacer Swipe */}
                 <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0 md:hidden">
@@ -667,41 +667,42 @@ export default function Citas() {
                   </button>
                 </div>
 
-                {/* CONTENIDO PRINCIPAL DE LA TARJETA */}
+                {/* CONTENIDO PRINCIPAL DE LA TARJETA CON NUEVO DISEÑO PROFESIONAL */}
                 <div 
                   onTouchStart={handleTouchStart}
                   onTouchEnd={(e) => handleTouchEnd(e, c.id_cita)}
-                  className={`bg-white dark:bg-surface w-full relative z-10 flex flex-col transition-transform duration-300 ${swipedCita === c.id_cita ? '-translate-x-24' : 'translate-x-0'} hover:border-primary/30 dark:hover:border-primary/50`}
+                  className={`bg-white dark:bg-surface w-full relative z-10 flex flex-col transition-transform duration-300 border-l-[6px] border-l-primary ${swipedCita === c.id_cita ? '-translate-x-24' : 'translate-x-0'} hover:shadow-lg`}
                 >
-                  {c.esMultiple && <div className="absolute top-0 left-0 w-1 h-full bg-primary z-10" title="Múltiples procedimientos en esta fecha"></div>}
                   
-                  {/* Cuerpo de la tarjeta clickeable para Editar  Cita */}
+                  {/* Cuerpo de la tarjeta clickeable para Editar Cita */}
                   <div 
                     onClick={() => abrirEdicionCita(c)}
-                    className="p-4 flex justify-between items-center hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors"
+                    className="p-5 flex justify-between items-center hover:bg-gray-50/80 dark:hover:bg-white/5 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors p-3 rounded-xl font-bold text-center min-w-[70px] text-xs">
-                        <div className="text-sm font-black">{c.hora.substring(0,5)}</div>
-                        <div>{c.fecha}</div>
+                      {/* NUEVO DISEÑO DE HORA Y FECHA */}
+                      <div className="bg-surface border border-gray-100 dark:border-gray-700 text-primary p-3 rounded-2xl font-bold text-center min-w-[75px] shadow-sm">
+                        <div className="text-base font-black">{c.hora.substring(0,5)}</div>
+                        <div className="text-xs text-muted font-medium mt-0.5">{c.fecha}</div>
                       </div>
+                      
                       <div>
-                        <h3 className="font-bold text-dark text-base flex items-center gap-2">
+                        <h3 className="font-bold text-dark text-lg flex items-center gap-2 flex-wrap">
                           {c.paciente}
-                          {c.esMultiple && <span className="bg-surface dark:bg-background text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full">Cita Múltiple</span>}
+                          {c.esMultiple && <span className="bg-primary/10 text-primary border border-primary/20 text-[10px] px-2 py-0.5 rounded-full shadow-sm">Cita Múltiple</span>}
                         </h3>
-                        <p className="text-xs text-muted">{c.telefono || 'Sin teléfono'}</p>
+                        <p className="text-sm text-muted flex items-center gap-1 mt-1">📞 {c.telefono || 'Sin teléfono'}</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs px-3 py-1.5 rounded-full uppercase">
+                      <span className="bg-surface text-primary border border-primary/30 font-bold text-xs px-4 py-1.5 rounded-full uppercase tracking-wide shadow-sm hidden sm:block">
                         {c.estado || 'Programada'}
                       </span>
                       {/* BOTÓN DE BORRAR PARA ESCRITORIO (Oculto en Móvil) */}
                       <button
                         onClick={(e) => { e.stopPropagation(); eliminarCita(c.id_cita); }}
-                        className="hidden md:flex text-gray-400 hover:text-danger p-1 transition-colors"
+                        className="hidden md:flex text-gray-400 hover:text-danger p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
                         title="Eliminar cita"
                       >
                         <Trash2 size={20} />
@@ -710,11 +711,14 @@ export default function Citas() {
                   </div>
                   
                   {/* Botón Inferior: WhatsApp */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-transparent flex justify-end">
+                  <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-transparent flex justify-between items-center">
+                    <span className="sm:hidden bg-surface text-primary border border-primary/30 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wide shadow-sm">
+                        {c.estado || 'Programada'}
+                    </span>
                     <button
                       type="button"
                       onClick={(e) => abrirWhatsAppRecordatorio(e, c.telefono, c.paciente, c.fecha, c.hora)}
-                      className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-4 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"
+                      className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-2 px-5 rounded-full flex items-center justify-center gap-2 shadow-md transition-all text-xs hover:scale-105 ml-auto"
                     >
                       <MessageCircle size={14} />
                       Enviar Recordatorio
@@ -725,7 +729,7 @@ export default function Citas() {
               </div>
             ))
           ) : (
-            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-white/5 text-center text-muted">No hay citas programadas.</div>
+            <div className="bg-white dark:bg-surface p-8 rounded-2xl border border-gray-100 dark:border-white/5 text-center text-muted shadow-sm">No hay citas programadas en el sistema.</div>
           )}
         </div>
       </div>
