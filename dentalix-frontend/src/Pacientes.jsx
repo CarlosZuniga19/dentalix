@@ -1,0 +1,1300 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Plus, Upload, X, Check, Calendar as CalendarIcon, MessageCircle, Printer, Loader2, Pill, Download, FileSpreadsheet, Trash2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import Papa from 'papaparse';
+import { useAppContext } from './App';
+
+// --- ARREGLOS DE DATOS CLÍNICOS EXACTOS ---
+const ANAMNESIS_ITEMS = [
+  "Dolor en el pecho", "Enfermedades del corazón", "Algún problema respiratorio", "Asma o fiebre de heno", "Alergias", "Desmayos, convulsiones o epilepsia", "Diabetes", "Hepatitis o enfermedad del hígado", "Artritis - reumatismo", "Úlcera gástrica", "Dolor abdominal", "Dolor de cabeza", "Dolor muscular", "Fiebre frecuente", "Mareos vértigo", "Enfermedad del riñón", "Tuberculosis", "Problemas de presión arterial", "Anemia", "Hemofilia", "Tuvo hemorragias después de extracciones", "Enfermedad mental o problemas emocionales", "Radioterapia o tratamiento para el cáncer", "Enfermedades por transmisión sexual", "Problemas de tiroides", "Enfermedades de la piel", "Ha tenido un crecimiento anormal o tumoración", "Delirio o estado confusional", "Tabaquismo actual", "Alcoholismo actual", "Alcoholismo en el pasado", "¿Ha consumido drogas?", "¿Le han practicado exámenes para detectar SIDA?", "¿Está usted embarazada?", "¿Ya se presentó la menopausia?", "¿Su médico autoriza el tratamiento dental?", "¿Está usted amamantando?", "¿Utiliza algún método anticonceptivo?", "Varicela", "Sarampión", "Rubéola", "Paperas"
+];
+
+const CONDICIONES_DENTALES = [
+  { nombre: 'Caries', color: '#EF4444' }, { nombre: 'Resina', color: '#3B82F6' },
+  { nombre: 'Ausente', color: '#9CA3AF' }, { nombre: 'Tratamiento de conducto radicular', color: '#8B5CF6' },
+  { nombre: 'Fractura de corona', color: '#F97316' }, { nombre: 'Sensibilidad', color: '#EAB308' },
+  { nombre: 'Reconstrucción', color: '#14B8A6' }, { nombre: 'Corona', color: '#EAB308' },
+  { nombre: 'Implante', color: '#06B6D4' }, { fontColor: '#FFFFFF', nombre: 'Puente', color: '#6366F1' },
+  { nombre: 'Protesis Removible', color: '#EC4899' }, { nombre: 'Corona, poste y nucleo', color: '#A8A29E' },
+  { nombre: 'Diente pilar', color: '#84CC16' }, { nombre: 'Resto radicular', color: '#1F2937' },
+  { nombre: 'No vital', color: '#4B5563' }, { nombre: 'Movilidad 1', color: '#FCA5A5' },
+  { nombre: 'Movilidad 2', color: '#F87171' }, { nombre: 'Movilidad 3', color: '#DC2626' },
+  { nombre: 'Recesion gingival', color: '#FBCFE8' }, { nombre: 'Nota', color: '#FFFFFF', borde: '#CBD5E1' }
+];
+
+const DIENTES_ADULTOS = [
+  18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28,
+  48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38
+];
+
+// ============================================================================
+// FUNCIONES AUXILIARES PARA RENDERIZADO NATIVO EN PDF (SIN HTML2CANVAS)
+// ============================================================================
+const hexToRgb = (hex) => {
+  let c;
+  if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+    c = hex.substring(1).split('');
+    if (c.length === 3) { c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
+    c = '0x' + c.join('');
+    return [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  }
+  return [0, 0, 0];
+};
+
+const capturarDiente = (diente, colorStr) => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const scale = 3; 
+      canvas.width = (img.naturalWidth || 50) * scale;
+      canvas.height = (img.naturalHeight || 100) * scale;
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (colorStr && colorStr !== 'transparent' && colorStr !== '#FFFFFF') {
+        ctx.fillStyle = colorStr;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+      
+      const ratio = img.naturalHeight > 0 ? (img.naturalWidth / img.naturalHeight) : 0.5;
+
+      resolve({
+        imgData: canvas.toDataURL('image/png', 1.0),
+        ratio: ratio
+      });
+    };
+    img.onerror = () => resolve(null);
+    img.src = `/odontograma/${diente}.svg`;
+  });
+};
+// ============================================================================
+
+export default function Pacientes() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const mostrarEstadoCita = location.state?.mostrarEstadoCita || false;
+
+  const [vista, setVista] = useState(mostrarEstadoCita ? 'nuevo' : 'lista');
+  const [catalogoProcedimientos, setCatalogoProcedimientos] = useState([]);
+  const API_URL = 'https://dentalix.lat/api.php';
+  const { setBackAction } = useAppContext();
+
+  const [listaPacientes, setListaPacientes] = useState([]);
+  const [busquedaP, setBusquedaP] = useState('');
+  const [todasLasCitas, setTodasLasCitas] = useState([]);
+  
+  const [datosPaciente, setDatosPaciente] = useState({
+    nombre: '', telefono: '', notas: '', fechaNacimiento: '1998-01-01', direccion: '', ocupacion: '', motivo: ''
+  });
+
+  const [tratamientosGuardados, setTratamientosGuardados] = useState([]);
+  const [modalTratamiento, setModalTratamiento] = useState(false);
+  const [tratamientoTemp, setTratamientoTemp] = useState({ fecha: '', hora: '', procedimientos: [], dientes: [] });
+
+  const [historialOdontograma, setHistorialOdontograma] = useState({});
+  const [dienteActivoHistorial, setDienteActivoHistorial] = useState(null);
+  
+  const [imagenes, setImagenes] = useState([]);
+  const [archivosLocales, setArchivosLocales] = useState([]);
+  const [imagenEnGrande, setImagenEnGrande] = useState(null);
+
+  // Estados para Firma Digital
+  const canvasRef = useRef(null);
+  const [dibujando, setDibujando] = useState(false);
+  const [canvasTieneTrazos, setCanvasTieneTrazos] = useState(false);
+  const [firmaBase64, setFirmaBase64] = useState(null);
+
+  // Estado para la carga visual del PDF
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+  
+  // Estado de carga para importación CSV
+  const [importandoCSV, setImportandoCSV] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Estados y Lógica para Deslizar (Swipe) Fila de Paciente en Móviles
+  const [swipedPaciente, setSwipedPaciente] = useState(null);
+  const touchStartX = useRef(0);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e, id_paciente) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (diff > 40) {
+      setSwipedPaciente(id_paciente);
+    } else if (diff < -40 && swipedPaciente === id_paciente) {
+      setSwipedPaciente(null);
+    }
+  };
+
+  const [anamnesis, setAnamnesis] = useState(
+    ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {})
+  );
+
+  const cargarPacientes = () => {
+    fetch(`${API_URL}?accion=pacientes`).then(res => res.json()).then(data => setListaPacientes(data || []));
+  };
+
+  useEffect(() => {
+    if (vista !== 'lista') {
+      setBackAction(() => () => {
+        setSwipedPaciente(null);
+        setVista('lista');
+      });
+    } else {
+      setBackAction(null);
+    }
+    return () => setBackAction(null);
+  }, [vista, setBackAction]);
+
+  useEffect(() => {
+    fetch(`${API_URL}?accion=procedimientos`).then(res => res.json()).then(data => setCatalogoProcedimientos(data || []));
+    cargarPacientes();
+    fetch(`${API_URL}?accion=citas_lista`).then(res => res.json()).then(data => setTodasLasCitas(data || []));
+  }, [vista]);
+
+  useEffect(() => {
+    if (location.state?.pacientePreseleccionadoParaAbrir) {
+      const idRecall = location.state.pacientePreseleccionadoParaAbrir.id_paciente;
+      fetch(`${API_URL}?accion=pacientes`)
+        .then(res => res.json())
+        .then(data => {
+          const pacientes = data || [];
+          const pacienteCompleto = pacientes.find(p => Number(p.id) === Number(idRecall));
+          if (pacienteCompleto) {
+            abrirEdicionPaciente(pacienteCompleto);
+          } else {
+            abrirEdicionPaciente({
+              id: idRecall,
+              nombre: location.state.pacientePreseleccionadoParaAbrir.nombre,
+              telefono: location.state.pacientePreseleccionadoParaAbrir.telefono
+            });
+          }
+          navigate(location.pathname, { replace: true, state: {} });
+        })
+        .catch(err => console.error("Error al cargar paciente de recall:", err));
+    }
+  }, [location.state, navigate]);
+
+  const cargarImagenes = (idPaciente) => {
+    fetch(`${API_URL}?accion=imagenes&id_paciente=${idPaciente}`).then(res => res.json()).then(data => setImagenes(data || []));
+  };
+
+  const handleNuevoPaciente = () => {
+    setDatosPaciente({ nombre: '', telefono: '', notas: '', fechaNacimiento: '1998-01-01', direccion: '', ocupacion: '', motivo: '' });
+    setImagenes([]); 
+    setArchivosLocales([]);
+    setHistorialOdontograma({});
+    setTratamientosGuardados([]);
+    setFirmaBase64(null);
+    setCanvasTieneTrazos(false);
+    setAnamnesis(ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {}));
+    setSwipedPaciente(null);
+    setVista('nuevo');
+  };
+
+  const abrirEdicionPaciente = (p) => {
+    setDatosPaciente({
+      id: p.id, nombre: p.nombre || '', telefono: p.telefono || '', notas: p.notas || '',
+      fechaNacimiento: p.fecha_nacimiento || '1998-01-01', direccion: p.direccion || '', ocupacion: p.ocupacion || '', motivo: p.motivo_consulta || ''
+    });
+    setArchivosLocales([]);
+    setSwipedPaciente(null);
+
+    fetch(`${API_URL}?accion=expediente_clinico&id_paciente=${p.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.tratamientos) setTratamientosGuardados(data.tratamientos);
+        
+        if (data.firma) setFirmaBase64(data.firma);
+        else setFirmaBase64(null);
+        setCanvasTieneTrazos(false);
+
+        if (data.odontograma) {
+          const odontoObj = {};
+          data.odontograma.forEach(item => { odontoObj[item.numero_diente] = { nombre: item.nombre, color: item.color }; });
+          setHistorialOdontograma(odontoObj);
+        } else {
+          setHistorialOdontograma({});
+        }
+        if (data.anamnesis) {
+          const anamnesisObj = ANAMNESIS_ITEMS.reduce((acc, _, idx) => ({ ...acc, [idx]: { estado: '?', detalle: '' } }), {});
+          data.anamnesis.forEach(item => {
+            anamnesisObj[item.pregunta_id] = { estado: item.respuesta, detalle: item.detalle || '' };
+          });
+          setAnamnesis(anamnesisObj);
+        }
+      });
+
+    cargarImagenes(p.id); 
+    setVista('editar');
+  };
+
+  const eliminarPaciente = (idPaciente) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este paciente? Se eliminarán también sus citas, expediente y fotos asociadas.")) return;
+
+    fetch(`${API_URL}?accion=eliminar_paciente`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_paciente: idPaciente })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success || data.mensaje) {
+        alert("Paciente eliminado correctamente.");
+        cargarPacientes();
+        if (vista !== 'lista') {
+          setVista('lista');
+        }
+      } else {
+        alert("Error al eliminar el paciente: " + (data.error || "Error desconocido"));
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error de conexión al eliminar el paciente.");
+    });
+  };
+
+  const handleAnamnesisClick = (idx) => {
+    const actual = anamnesis[idx].estado;
+    let nuevo = '?';
+    if (actual === '?') nuevo = 'No'; else if (actual === 'No') nuevo = 'Si';
+    setAnamnesis({ ...anamnesis, [idx]: { ...anamnesis[idx], estado: nuevo } });
+  };
+
+  const handleImagenUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!datosPaciente.id) {
+      setArchivosLocales(prev => [...prev, ...files]);
+      const previews = files.map(file => ({ ruta_imagen: URL.createObjectURL(file), es_local: true }));
+      setImagenes(prev => [...prev, ...previews]);
+      return;
+    }
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('imagen', file);
+      formData.append('id_paciente', datosPaciente.id);
+      try {
+        const res = await fetch(`${API_URL}?accion=subir_imagen`, { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) cargarImagenes(datosPaciente.id);
+      } catch (err) { console.error(err); }
+    }
+  };
+  
+  const aplicarCondicionDental = (condicion) => {
+    if (!dienteActivoHistorial) return;
+    setHistorialOdontograma({ ...historialOdontograma, [dienteActivoHistorial]: condicion });
+    setDienteActivoHistorial(null);
+  };
+
+  const guardarTratamiento = () => {
+    if (!tratamientoTemp.fecha) { alert("Selecciona una fecha."); return; }
+    if (tratamientoTemp.procedimientos.length === 0 || !tratamientoTemp.procedimientos[0]) { alert("Selecciona un procedimiento."); return; }
+
+    setTratamientosGuardados([...tratamientosGuardados, tratamientoTemp]);
+    setModalTratamiento(false);
+    setTratamientoTemp({ fecha: '', hora: '', procedimientos: [], dientes: [] });
+  };
+
+  // --- LÓGICA DE EVENTOS PARA EL CANVAS DE FIRMA ---
+  const iniciarDibujo = (e) => {
+    e.target.setPointerCapture(e.pointerId);
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.moveTo(x, y);
+    setDibujando(true);
+    setCanvasTieneTrazos(true);
+  };
+
+  const dibujar = (e) => {
+    if (!dibujando) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const detenerDibujo = (e) => {
+    if (!dibujando) return;
+    e.target.releasePointerCapture(e.pointerId);
+    setDibujando(false);
+  };
+
+  const limpiarFirma = () => {
+    setFirmaBase64(null);
+    setCanvasTieneTrazos(false);
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+  };
+
+  const guardarExpedienteYRegresar = async () => {
+    if (!datosPaciente.nombre) { alert("El nombre del paciente es obligatorio."); return; }
+
+    let finalSignature = firmaBase64;
+    if (canvasRef.current && canvasTieneTrazos) {
+      finalSignature = canvasRef.current.toDataURL('image/png');
+    }
+
+    const payload = {
+      paciente: { ...datosPaciente, firma: finalSignature },
+      cita: { fecha: '', hora: '', estado: ['programado'] }, 
+      procedimientos: [], 
+      pagos: [], 
+      anamnesis: anamnesis,
+      historialOdontograma: historialOdontograma,
+      tratamientosGuardados: tratamientosGuardados
+    };
+
+    try {
+      const res = await fetch(`${API_URL}?accion=guardar_paciente_cita`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const textData = await res.text();
+      let data;
+      
+      try {
+        data = JSON.parse(textData);
+      } catch (e) {
+        console.error("Crash del servidor PHP detectado:", textData);
+        alert("Ocurrió un error interno en el servidor PHP. Revisa la consola.");
+        return;
+      }
+
+      if (data.success) {
+        const idPacienteReal = datosPaciente.id || data.id_paciente || data.id;
+
+        if (archivosLocales.length > 0 && idPacienteReal) {
+          for (const file of archivosLocales) {
+            const formData = new FormData();
+            formData.append('imagen', file);
+            formData.append('id_paciente', idPacienteReal);
+            await fetch(`${API_URL}?accion=subir_imagen`, { method: 'POST', body: formData });
+          }
+        }
+        
+        setVista('lista');
+      } else {
+        alert("Error al guardar: " + (data.error || data.mensaje || "Error desconocido devuelto por la base de datos."));
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+      alert("Error de conexión al servidor.");
+    }
+  };
+
+  const irACrearCita = () => {
+    navigate('/citas', { state: { pacientePreseleccionado: datosPaciente } });
+  };
+
+  const irARecetas = () => {
+    navigate('/recetas', { state: { pacientePreseleccionado: datosPaciente } });
+  };
+
+  // --- LÓGICA DE IMPORTACIÓN / EXPORTACIÓN CSV ---
+  
+  const descargarPlantilla = () => {
+    const headers = ["Nombre", "Telefono", "Fecha de Nacimiento (YYYY-MM-DD)", "Direccion", "Ocupacion", "Motivo de Consulta", "Notas"];
+    
+    const ejemplo1 = ["Juan Pérez Gómez", "5512345678", "1985-05-20", "Calle Reforma 123", "Ingeniero", "Dolor en muela derecha", "Paciente nervioso"];
+    const ejemplo2 = ["María López (Borra estos ejemplos)", "5587654321", "1990-11-05", "Av. Insurgentes 45", "Maestra", "Limpieza anual", ""];
+    
+    let csvContent = headers.join(",") + "\n";
+    csvContent += ejemplo1.map(e => `"${e}"`).join(",") + "\n";
+    csvContent += ejemplo2.map(e => `"${e}"`).join(",") + "\n";
+    
+    // SOLUCIÓN PARA DESCARGAS EN MÓVILES (Uso de Blob)
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' }); // \ufeff permite leer acentos en Excel
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "Plantilla_Pacientes_Dentalix.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Limpieza de memoria
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  };
+
+  const handleSubirCSV = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setImportandoCSV(true);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async function(results) {
+        const pacientesAImportar = results.data.map(fila => {
+            return {
+                nombre: fila["Nombre"] || fila["nombre"] || fila["NOMBRE"] || "",
+                telefono: fila["Telefono"] || fila["telefono"] || fila["Teléfono"] || "",
+                fechaNacimiento: fila["Fecha de Nacimiento (YYYY-MM-DD)"] || fila["fecha_nacimiento"] || "",
+                direccion: fila["Direccion"] || fila["direccion"] || fila["Dirección"] || "",
+                ocupacion: fila["Ocupacion"] || fila["ocupacion"] || fila["Ocupación"] || "",
+                motivo: fila["Motivo de Consulta"] || fila["motivo"] || "",
+                notas: fila["Notas"] || fila["notas"] || ""
+            };
+        }).filter(p => p.nombre.trim() !== "" && !p.nombre.includes("Borra estos ejemplos")); 
+
+        if (pacientesAImportar.length === 0) {
+            alert("No se encontraron pacientes válidos en el archivo.");
+            setImportandoCSV(false);
+            if(fileInputRef.current) fileInputRef.current.value = "";
+            return;
+        }
+
+        try {
+            const userId = localStorage.getItem('dentalix_usuario_id') || '1';
+            
+            const res = await fetch(`${API_URL}?accion=importar_pacientes_csv`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    pacientes: pacientesAImportar, 
+                    usuario_id: userId 
+                })
+            });
+
+            const data = await res.json();
+            
+            if (data.success) {
+                alert(`¡Éxito! Se importaron ${data.importados} pacientes correctamente.`);
+                cargarPacientes();
+            } else {
+                alert("Error al importar: " + data.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error de conexión al importar el archivo.");
+        } finally {
+            setImportandoCSV(false);
+            if(fileInputRef.current) fileInputRef.current.value = "";
+        }
+      },
+      error: function(error) {
+        alert("Error al leer el archivo CSV: " + error.message);
+        setImportandoCSV(false);
+        if(fileInputRef.current) fileInputRef.current.value = "";
+      }
+    });
+  };
+
+  // --- LÓGICA PARA GENERAR PDF DEL EXPEDIENTE CLÍNICO ---
+  const generarExpedientePDF = async () => {
+    setGenerandoPDF(true);
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      
+      let primaryColor = [139, 92, 246];
+      const colorCache = localStorage.getItem('dentalix_color_primario');
+      if (colorCache) {
+        const hex = colorCache.replace('#', '');
+        primaryColor = [
+          parseInt(hex.substring(0, 2), 16),
+          parseInt(hex.substring(2, 4), 16),
+          parseInt(hex.substring(4, 6), 16)
+        ];
+      }
+      
+      const nombreApp = localStorage.getItem('dentalix_nombre_app') || 'DENTALIX CLÍNICA';
+      const logoCache = localStorage.getItem('dentalix_logo');
+
+      doc.setFillColor(...primaryColor);
+      doc.rect(0, 0, 210, 35, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(22);
+      doc.text("EXPEDIENTE CLÍNICO", 14, 23);
+      
+      if (logoCache) {
+        doc.addImage(logoCache, 'PNG', 160, 5, 35, 25);
+      } else {
+        doc.setFontSize(10);
+        doc.text(nombreApp, 155, 23);
+      }
+
+      let yPos = 45;
+
+      doc.setTextColor(...primaryColor);
+      doc.setFontSize(12);
+      doc.text("DATOS DEL PACIENTE", 14, yPos);
+      yPos += 8;
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Nombre: ${datosPaciente.nombre || 'N/A'}`, 14, yPos);
+      doc.text(`Teléfono: ${datosPaciente.telefono || 'N/A'}`, 110, yPos);
+      yPos += 6;
+      doc.text(`Nacimiento: ${datosPaciente.fechaNacimiento || 'N/A'}`, 14, yPos);
+      doc.text(`Ocupación: ${datosPaciente.ocupacion || 'N/A'}`, 110, yPos);
+      yPos += 6;
+      doc.text(`Dirección: ${datosPaciente.direccion || 'N/A'}`, 14, yPos);
+      yPos += 6;
+      const motivoText = doc.splitTextToSize(`Motivo: ${datosPaciente.motivo || 'N/A'}`, 180);
+      doc.text(motivoText, 14, yPos);
+      yPos += (motivoText.length * 5) + 5;
+
+      doc.setTextColor(...primaryColor);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("ANAMNESIS (Padecimientos Médicos)", 14, yPos);
+      yPos += 8;
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+
+      const padecimientosSi = Object.entries(anamnesis).filter(([_, val]) => val.estado === 'Si');
+      
+      if (padecimientosSi.length === 0) {
+        doc.text("Negativo para todos los padecimientos médicos interrogados.", 14, yPos);
+        yPos += 8;
+      } else {
+        padecimientosSi.forEach(([idx, val]) => {
+          const text = `• ${ANAMNESIS_ITEMS[idx]}${val.detalle ? `: ${val.detalle}` : ''}`;
+          const lines = doc.splitTextToSize(text, 180);
+          doc.text(lines, 14, yPos);
+          yPos += (lines.length * 5);
+        });
+        yPos += 4;
+      }
+
+      if (yPos + 80 > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      doc.setTextColor(...primaryColor);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("MAPEO DENTAL (ODONTOGRAMA)", 14, yPos);
+      yPos += 10;
+
+      const anchoCelda = 8; 
+      const maxAltoDiente = 14; 
+      const separacion = 2; 
+      const anchoTotalFila = (16 * anchoCelda) + (15 * separacion); 
+      const xInicial = (210 - anchoTotalFila) / 2; 
+
+      doc.setFontSize(8);
+      for (let i = 0; i < 16; i++) {
+        const diente = DIENTES_ADULTOS[i];
+        const condicion = historialOdontograma[diente];
+        const color = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+        
+        const captura = await capturarDiente(diente, color);
+        const xCelda = xInicial + (i * (anchoCelda + separacion));
+        
+        if (color !== 'transparent') {
+          doc.setTextColor(...hexToRgb(color));
+          doc.setFont("helvetica", "bold");
+        } else {
+          doc.setTextColor(100, 100, 100);
+          doc.setFont("helvetica", "normal");
+        }
+        doc.text(diente.toString(), xCelda + (anchoCelda / 2) - 1.5, yPos);
+
+        if (captura && captura.imgData) {
+          let toothW = anchoCelda;
+          let toothH = toothW / captura.ratio;
+          
+          if (toothH > maxAltoDiente) {
+            toothH = maxAltoDiente;
+            toothW = toothH * captura.ratio;
+          }
+          
+          const offsetX = xCelda + (anchoCelda - toothW) / 2;
+          const offsetY = yPos + 3 + (maxAltoDiente - toothH); 
+
+          doc.addImage(captura.imgData, 'PNG', offsetX, offsetY, toothW, toothH);
+        }
+      }
+
+      yPos += maxAltoDiente + 10;
+
+      for (let i = 16; i < 32; i++) {
+        const diente = DIENTES_ADULTOS[i];
+        const condicion = historialOdontograma[diente];
+        const color = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+        
+        const captura = await capturarDiente(diente, color);
+        const xCelda = xInicial + ((i - 16) * (anchoCelda + separacion));
+        
+        if (captura && captura.imgData) {
+          let toothW = anchoCelda;
+          let toothH = toothW / captura.ratio;
+          
+          if (toothH > maxAltoDiente) {
+            toothH = maxAltoDiente;
+            toothW = toothH * captura.ratio;
+          }
+          
+          const offsetX = xCelda + (anchoCelda - toothW) / 2;
+          const offsetY = yPos; 
+
+          doc.addImage(captura.imgData, 'PNG', offsetX, offsetY, toothW, toothH);
+        }
+
+        if (color !== 'transparent') {
+          doc.setTextColor(...hexToRgb(color));
+          doc.setFont("helvetica", "bold");
+        } else {
+          doc.setTextColor(100, 100, 100);
+          doc.setFont("helvetica", "normal");
+        }
+        doc.text(diente.toString(), xCelda + (anchoCelda / 2) - 1.5, yPos + maxAltoDiente + 5);
+      }
+
+      yPos += maxAltoDiente + 14;
+
+      const dientesConCondicion = Object.entries(historialOdontograma);
+      if (dientesConCondicion.length > 0) {
+        doc.setTextColor(...primaryColor);
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.text("DIAGNÓSTICOS DEL ODONTOGRAMA", 14, yPos);
+        yPos += 8;
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        
+        dientesConCondicion.forEach(([diente, data]) => {
+          if (yPos > 275) { doc.addPage(); yPos = 20; }
+          
+          doc.setFillColor(...hexToRgb(data.color));
+          doc.circle(16, yPos - 1.2, 2, 'F');
+          
+          doc.setTextColor(0, 0, 0);
+          doc.text(`Diente ${diente}: ${data.nombre}`, 21, yPos);
+          yPos += 6;
+        });
+        yPos += 4;
+      }
+
+      if (tratamientosGuardados.length > 0) {
+        if (yPos > 240) { doc.addPage(); yPos = 20; }
+        
+        doc.setTextColor(...primaryColor);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("HISTORIAL DE TRATAMIENTOS REALIZADOS", 14, yPos);
+        yPos += 6;
+
+        const tratData = tratamientosGuardados.map(t => [
+          t.fecha,
+          t.procedimientos.join(', '),
+          t.dientes.join(', ') || 'N/A'
+        ]);
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['Fecha', 'Procedimiento(s)', 'Diente(s)']],
+          body: tratData,
+          theme: 'striped',
+          headStyles: { fillColor: primaryColor, textColor: 255 },
+          styles: { fontSize: 9 }
+        });
+        
+        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : yPos + 30;
+      } else {
+        yPos += 15;
+      }
+
+      let finalSignatureToPrint = firmaBase64;
+      if (canvasRef.current && canvasTieneTrazos) {
+        finalSignatureToPrint = canvasRef.current.toDataURL('image/png');
+      }
+
+      if (yPos + 50 > 280) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      if (finalSignatureToPrint) {
+        doc.addImage(finalSignatureToPrint, 'PNG', 75, yPos, 60, 30);
+        yPos += 30;
+      } else {
+        yPos += 25;
+      }
+
+      doc.setDrawColor(0, 0, 0);
+      doc.line(75, yPos, 135, yPos);
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Firma del paciente", 105, yPos + 5, { align: "center" });
+      
+      if (datosPaciente.nombre) {
+        doc.text(datosPaciente.nombre, 105, yPos + 10, { align: "center" });
+      }
+
+      doc.save(`Expediente_${datosPaciente.nombre.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error("Error al generar PDF:", error);
+      alert("Hubo un error al generar el documento.");
+    } finally {
+      setGenerandoPDF(false);
+    }
+  };
+
+  const getWaLink = (telefono) => {
+    if (!telefono) return '#';
+    let num = telefono.replace(/\D/g, ''); 
+    if (num.length === 10) num = '52' + num;
+    return `https://wa.me/${num}`;
+  };
+
+  const getFnParts = (fecha) => {
+    if (!fecha) return ['1998', '01', '01'];
+    const parts = fecha.split('-');
+    if (parts.length === 3) return parts;
+    return ['1998', '01', '01'];
+  };
+
+  const handleFechaNacimiento = (type, value) => {
+    const current = getFnParts(datosPaciente.fechaNacimiento);
+    let y = current[0], m = current[1], d = current[2];
+    if (type === 'year') y = value;
+    if (type === 'month') m = value;
+    if (type === 'day') d = value;
+    setDatosPaciente({ ...datosPaciente, fechaNacimiento: `${y}-${m}-${d}` });
+  };
+
+  const [fnYear, fnMonth, fnDay] = getFnParts(datosPaciente.fechaNacimiento);
+
+  // ================= VISTA: LISTA DE PACIENTES =================
+  if (vista === 'lista') {
+    const filtrados = listaPacientes.filter(p => p.nombre.toLowerCase().includes(busquedaP.toLowerCase()));
+    return (
+      <div className="max-w-6xl mx-auto pb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div><h1 className="text-2xl font-bold text-dark">Pacientes Registrados</h1><p className="text-muted text-sm">Total: {filtrados.length} pacientes</p></div>
+          <div className="flex flex-row justify-center items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            {/* BOTÓN DESCARGAR PLANTILLA */}
+            <button onClick={descargarPlantilla} className="flex-1 sm:flex-none bg-surface hover:bg-gray-100 text-dark border border-gray-200 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm transition-colors text-[11px] sm:text-sm whitespace-nowrap">
+                <Download size={16} className="text-muted shrink-0" /> <span>Plantilla<span className="hidden sm:inline"> CSV</span></span>
+            </button>
+            
+            {/* BOTÓN SUBIR ARCHIVO */}
+            <label className={`flex-1 sm:flex-none cursor-pointer ${importandoCSV ? 'bg-gray-100 text-muted' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'} border border-primary/20 px-2 sm:px-4 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm transition-colors text-[11px] sm:text-sm whitespace-nowrap`}>
+                {importandoCSV ? <Loader2 size={16} className="animate-spin shrink-0" /> : <FileSpreadsheet size={16} className="shrink-0" />}
+                {importandoCSV ? 'Importando...' : <span>Importar<span className="hidden sm:inline"> CSV</span></span>}
+                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleSubirCSV} disabled={importandoCSV} />
+            </label>
+
+            {/* BOTÓN NUEVO PACIENTE NORMAL */}
+            <button onClick={handleNuevoPaciente} className="flex-1 sm:flex-none bg-primary hover:bg-primary-hover text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full flex items-center justify-center gap-1 sm:gap-2 font-medium shadow-sm shrink-0 text-[11px] sm:text-sm whitespace-nowrap">
+                <Plus size={16} className="shrink-0" /> Nuevo
+            </button>
+          </div>
+        </div>
+        <div className="relative mb-4"><input type="text" placeholder="Buscar paciente por nombre..." value={busquedaP} onChange={(e) => setBusquedaP(e.target.value)} className="w-full pl-6 pr-4 py-3 bg-white dark:bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary shadow-sm text-dark" /></div>
+        
+        {/* EN MÓVIL: TARJETAS CON SWIPE | EN ESCRITORIO: TABLA CON BOTÓN FIJO DE BORRAR */}
+        <div className="bg-white dark:bg-surface rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          {filtrados.length > 0 ? (
+            <>
+              {/* VISTA MÓVIL (TARJETAS DESLIZABLES) */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {filtrados.map(p => {
+                  const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
+                  return (
+                    <div key={p.id} className="relative overflow-hidden bg-danger">
+                      {/* BOTÓN ROJO QUE APARECE AL DESLIZAR */}
+                      <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center z-0">
+                        <button
+                          onClick={() => eliminarPaciente(p.id)}
+                          className="text-white w-full h-full flex flex-col items-center justify-center font-bold"
+                        >
+                          <Trash2 size={22} className="mb-1" />
+                          <span className="text-[10px]">Eliminar</span>
+                        </button>
+                      </div>
+
+                      {/* TARJETA DESLIZABLE */}
+                      <div
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={(e) => handleTouchEnd(e, p.id)}
+                        onClick={() => abrirEdicionPaciente(p)}
+                        className={`p-4 bg-white dark:bg-surface relative z-10 flex justify-between items-center transition-transform duration-300 ${swipedPaciente === p.id ? '-translate-x-24' : 'translate-x-0'}`}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="font-bold text-primary text-base">{p.nombre}</span>
+                          {p.telefono ? (
+                            <a
+                              href={getWaLink(p.telefono)}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[#25D366] text-xs font-bold flex items-center gap-1"
+                            >
+                              <MessageCircle size={14} /> {p.telefono}
+                            </a>
+                          ) : <span className="text-xs text-muted">Sin teléfono</span>}
+                          {p.motivo_consulta && <span className="text-xs text-muted truncate max-w-[200px]">{p.motivo_consulta}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {tieneCita ? (
+                            <span className="text-primary bg-primary/10 text-xs px-2.5 py-1 rounded-full font-black">Cita pendiente</span>
+                          ) : (
+                            <span className="text-muted text-xs">Sin cita</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* VISTA ESCRITORIO (TABLA TRADICIONAL CON BASURERO FIJO) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-surface dark:bg-background border-b border-gray-100 text-muted font-bold text-xs uppercase">
+                      <th className="p-4">Nombre</th>
+                      <th className="p-4">Teléfono</th>
+                      <th className="p-4">Ocupación</th>
+                      <th className="p-4">Motivo</th>
+                      <th className="p-4 text-center">Cita Pendiente</th>
+                      <th className="p-4 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 text-sm text-dark font-medium">
+                    {filtrados.map(p => {
+                      const tieneCita = todasLasCitas.some(c => c.id_paciente === p.id && c.estado && c.estado.includes('programado'));
+                      return (
+                        <tr key={p.id} onClick={() => abrirEdicionPaciente(p)} className="hover:bg-surface/60 dark:hover:bg-background/40 transition-colors cursor-pointer group">
+                          <td className="p-4 font-bold text-primary group-hover:underline">{p.nombre}</td>
+                          <td className="p-4 text-muted">
+                            {p.telefono ? (
+                              <a 
+                                href={getWaLink(p.telefono)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                onClick={(e) => e.stopPropagation()} 
+                                className="text-[#25D366] hover:underline flex items-center gap-1.5 font-bold"
+                              >
+                                <MessageCircle size={15} /> {p.telefono}
+                              </a>
+                            ) : '—'}
+                          </td>
+                          <td className="p-4">{p.ocupacion || '—'}</td>
+                          <td className="p-4 truncate max-w-[200px]">{p.motivo_consulta || '—'}</td>
+                          <td className="p-4 text-center font-black">{tieneCita ? <span className="text-primary bg-primary/10 px-3 py-1 rounded-full">Sí</span> : <span className="text-muted">No</span>}</td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); eliminarPaciente(p.id); }}
+                              className="text-gray-400 hover:text-danger p-1 transition-colors"
+                              title="Eliminar paciente"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : <div className="p-8 text-center text-muted">No hay pacientes registrados aún.</div>}
+        </div>
+      </div>
+    );
+  }
+
+  // ================= VISTA: EXPEDIENTE GIGANTE =================
+  return (
+    <div className="max-w-4xl mx-auto pb-24 space-y-6">
+      
+      <button onClick={() => setVista('lista')} className="text-muted hover:text-dark font-medium flex items-center gap-2">
+        <X size={18} /> Cancelar y regresar a la lista
+      </button>
+
+      {datosPaciente.id && (
+        <div className="bg-[#E8F8F5] dark:bg-emerald-900/10 border border-[#A2D9CE] rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div>
+            <h3 className="font-bold text-[#117A65] dark:text-emerald-400 text-lg">¿El paciente necesita agendar?</h3>
+            <p className="text-sm text-[#148F77] dark:text-emerald-500/80">Ir al módulo de agenda para presupuestar procedimientos o asignar pagos a este paciente.</p>
+          </div>
+          <button onClick={irACrearCita} className="bg-[#117A65] hover:bg-[#0E6251] text-white px-6 py-3 rounded-full flex items-center justify-center gap-2 font-bold shadow-sm transition-colors w-full sm:w-auto shrink-0">
+            <CalendarIcon size={20} /> Asignarle una Cita a {datosPaciente.nombre.split(' ')[0]}
+          </button>
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
+
+        <section>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-3">
+            <h2 className="text-xl font-bold text-dark">{datosPaciente.id ? "Expediente Clínico" : "Creando Expediente de Paciente Nuevo"}</h2>
+            {datosPaciente.id && (
+              <div className="flex flex-row justify-center items-center gap-2 w-full sm:w-auto">
+                <button 
+                  onClick={irARecetas}
+                  className="flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2 shadow-sm transition-colors justify-center shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white border border-blue-100 dark:bg-blue-900/20 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-700 dark:hover:text-white whitespace-nowrap"
+                >
+                  <Pill size={16} className="shrink-0" /> Recetar
+                </button>
+                <button 
+                  onClick={generarExpedientePDF} 
+                  disabled={generandoPDF}
+                  className={`flex-1 sm:flex-none px-3 sm:px-5 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-1 sm:gap-2 shadow-sm transition-colors justify-center shrink-0 whitespace-nowrap ${
+                    generandoPDF 
+                      ? 'bg-gray-100 text-muted cursor-wait' 
+                      : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                  }`}
+                >
+                  {generandoPDF ? (
+                    <><Loader2 size={16} className="animate-spin shrink-0" /> <span>Generando<span className="hidden sm:inline"> PDF...</span></span></>
+                  ) : (
+                    <><Printer size={16} className="shrink-0" /> <span>Imprimir<span className="hidden sm:inline"> PDF</span></span></>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl font-bold" />
+            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl" />
+            
+            <div className="flex gap-2 w-full" title="Fecha de Nacimiento">
+              <select value={fnYear} onChange={e => handleFechaNacimiento('year', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Año</option>
+                {Array.from({length: 100}, (_, i) => new Date().getFullYear() - i).map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select value={fnMonth} onChange={e => handleFechaNacimiento('month', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Mes</option>
+                {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => {
+                   const nombresMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                   return <option key={m} value={m}>{nombresMeses[i]}</option>
+                })}
+              </select>
+              <select value={fnDay} onChange={e => handleFechaNacimiento('day', e.target.value)} className="w-1/3 p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl text-dark font-medium outline-none focus:border-primary">
+                <option value="" disabled>Día</option>
+                {Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0')).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+
+            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl" />
+            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl md:col-span-2" />
+            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
+            <textarea placeholder="Notas generales" value={datosPaciente.notas} onChange={e=>setDatosPaciente({...datosPaciente, notas: e.target.value})} className="w-full p-3 bg-surface dark:bg-background border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
+            Tratamientos Realizados en Clínica
+            <button onClick={() => setModalTratamiento(true)} className="bg-primary/10 text-primary hover:bg-primary hover:text-white px-3 py-1.5 rounded-full text-sm font-bold transition-colors flex items-center gap-1"><Plus size={16}/> Agregar</button>
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {tratamientosGuardados.length === 0 && <span className="text-sm text-muted">Sin tratamientos guardados en este expediente.</span>}
+            {tratamientosGuardados.map((trat, i) => (
+              <div key={i} className="bg-primary text-white text-xs font-bold px-3 py-2 rounded-full flex flex-col shadow-sm">
+                <span>{trat.fecha}</span>
+                <span className="opacity-90">{trat.procedimientos.length} proc. / {trat.dientes.length} dientes</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+      </div>
+
+      {/* ================= SECCIÓN ODONTOGRAMA ================= */}
+      <section className="w-full py-6 bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100" id="odontograma-capture">
+        <div className="px-6 sm:px-8 mb-8 mt-2">
+          <h2 className="text-xl font-bold text-dark mb-2 border-b border-gray-200 pb-2">Historial Dental (Odontograma)</h2>
+          <p className="text-xs text-muted">Toca un diente para asignarle un padecimiento.</p>
+        </div>
+
+        <div className="w-full flex flex-col gap-12 sm:gap-20 items-center overflow-x-hidden px-2">
+
+          <div className="flex justify-between items-end w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pt-6">
+            {DIENTES_ADULTOS.slice(0, 16).map(diente => {
+              const condicion = historialOdontograma[diente];
+              const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+              const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+
+              return (
+                <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className="relative flex flex-col items-center justify-end shrink min-w-0 group outline-none p-0 bg-transparent border-none">
+                  
+                  <span className="absolute bottom-full mb-1 sm:mb-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
+
+                  <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+                    {fillColor !== 'transparent' && (
+                      <div
+                        className="absolute inset-0 z-0 transition-colors"
+                        style={{
+                          backgroundColor: fillColor,
+                          WebkitMaskImage: `url("/odontograma/${diente}.svg")`,
+                          WebkitMaskSize: 'contain',
+                          WebkitMaskRepeat: 'no-repeat',
+                          WebkitMaskPosition: 'bottom center',
+                          maskImage: `url("/odontograma/${diente}.svg")`,
+                          maskSize: 'contain',
+                          maskRepeat: 'no-repeat',
+                          maskPosition: 'bottom center'
+                        }}
+                      />
+                    )}
+                    <img
+                      src={`/odontograma/${diente}.svg`}
+                      alt={`Diente ${diente}`}
+                      className="h-full w-auto max-w-full object-contain object-bottom relative z-10 transition-transform origin-bottom group-hover:scale-110 dark:invert dark:opacity-80"
+                      style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
+                    />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex justify-between items-start w-full gap-[1px] sm:gap-1 max-w-5xl mx-auto pb-6">
+            {DIENTES_ADULTOS.slice(16, 32).map(diente => {
+              const condicion = historialOdontograma[diente];
+              const fillColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : 'transparent';
+              const textColor = condicion?.color && condicion.color !== '#FFFFFF' ? condicion.color : '#374151';
+              
+              const isMiddleBottom = [43, 42, 41, 31, 32, 33].includes(diente);
+
+              return (
+                <button key={diente} onClick={() => setDienteActivoHistorial(diente)} className={`relative flex flex-col items-center justify-start shrink min-w-0 group outline-none p-0 bg-transparent border-none ${isMiddleBottom ? 'px-[2px] sm:px-1' : ''}`}>
+                  
+                  <div className="w-full relative flex justify-center h-24 sm:h-32 md:h-40 lg:h-48">
+                    {fillColor !== 'transparent' && (
+                      <div
+                        className="absolute inset-0 z-0 transition-colors"
+                        style={{
+                          backgroundColor: fillColor,
+                          WebkitMaskImage: `url("/odontograma/${diente}.svg")`,
+                          WebkitMaskSize: 'contain',
+                          WebkitMaskRepeat: 'no-repeat',
+                          WebkitMaskPosition: 'top center',
+                          maskImage: `url("/odontograma/${diente}.svg")`,
+                          maskSize: 'contain',
+                          maskRepeat: 'no-repeat',
+                          maskPosition: 'top center'
+                        }}
+                      />
+                    )}
+                    <img
+                      src={`/odontograma/${diente}.svg`}
+                      alt={`Diente ${diente}`}
+                      className="h-full w-auto max-w-full object-contain object-top relative z-10 transition-transform origin-top group-hover:scale-110 dark:invert dark:opacity-80"
+                      style={fillColor !== 'transparent' ? { mixBlendMode: 'multiply' } : {}}
+                    />
+                  </div>
+
+                  <span className="absolute top-full mt-1 sm:mt-2 text-[10px] sm:text-xs md:text-sm font-bold transition-colors whitespace-nowrap left-1/2 -translate-x-1/2" style={{ color: textColor }}>{diente}</span>
+                
+                </button>
+              )
+            })}
+          </div>
+
+        </div>
+
+        {dienteActivoHistorial && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-surface rounded-3xl w-full max-w-sm shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
+                <span className="font-black text-lg text-dark">Diente {dienteActivoHistorial}</span>
+                <button onClick={() => setDienteActivoHistorial(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-background rounded-full transition-colors"><X size={20} className="text-danger"/></button>
+              </div>
+              <div className="p-2 overflow-y-auto flex-1">
+                {CONDICIONES_DENTALES.map((cond, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => aplicarCondicionDental(cond)} 
+                    className="w-full flex items-center gap-3 p-3 hover:bg-surface dark:hover:bg-background rounded-xl text-left text-sm font-medium transition-colors"
+                  >
+                    <div className="w-5 h-5 rounded-full border-2 shadow-sm shrink-0" style={{ backgroundColor: cond.color, borderColor: cond.borde || cond.color }}></div>
+                    <span className="text-dark">{cond.nombre}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+      
+      <div className="bg-white dark:bg-surface rounded-3xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-10">
+
+        <section>
+          <label className="bg-white dark:bg-background border-2 border-dashed border-gray-300 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-surface transition-colors">
+            <Upload className="text-muted mb-2" size={28} />
+            <span className="text-sm font-bold text-muted">Subir Imágenes del Paciente</span>
+            <input type="file" multiple accept="image/*" onChange={handleImagenUpload} className="hidden" />
+          </label>
+          {imagenes.length > 0 && (
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
+              {imagenes.map((img, i) => {
+                const imageSrc = img.es_local ? img.ruta_imagen : `https://dentalix.lat/${img.ruta_imagen}`;
+                return (
+                  <img key={i} src={imageSrc} alt="Archivo Clínico" onClick={() => setImagenEnGrande(imageSrc)} className="w-20 h-20 object-cover rounded-xl cursor-pointer border-2 border-gray-200 hover:border-primary shadow-sm shrink-0" />
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">Anamnesis</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+            {ANAMNESIS_ITEMS.map((item, idx) => {
+              const state = anamnesis[idx].estado;
+              const bgClass = state === '?' ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400' : state === 'No' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-danger/10 text-danger';
+              return (
+                <div key={idx} className="flex flex-col bg-white dark:bg-surface border border-gray-100 p-2 rounded-xl shadow-sm">
+                  <div className="flex justify-between items-center gap-2"><span className="text-sm font-medium leading-tight text-dark flex-1">{item}</span><button onClick={() => handleAnamnesisClick(idx)} className={`w-10 h-8 rounded-lg font-black text-sm flex items-center justify-center shrink-0 transition-colors ${bgClass}`}>{state}</button></div>
+                  {state === 'Si' && <input type="text" placeholder="Especifique..." value={anamnesis[idx].detalle} onChange={(e) => setAnamnesis({...anamnesis, [idx]: {...anamnesis[idx], detalle: e.target.value}})} className="mt-2 w-full p-2 bg-surface dark:bg-background border border-gray-200 rounded text-xs" />}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* --- SECCIÓN DE FIRMA DIGITAL --- */}
+        <section>
+          <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2 flex justify-between items-center">
+            Firmar expediente
+            {(firmaBase64 || canvasTieneTrazos) && (
+              <button onClick={limpiarFirma} className="text-xs text-danger hover:underline font-bold transition-colors">
+                Borrar Firma
+              </button>
+            )}
+          </h2>
+          
+          <div className="flex flex-col items-center justify-center">
+            {firmaBase64 && !canvasTieneTrazos ? (
+              <div className="relative border-2 border-gray-200 rounded-2xl w-full max-w-lg h-40 flex items-center justify-center bg-white dark:bg-surface shadow-sm overflow-hidden">
+                <img src={firmaBase64} alt="Firma del paciente" className="max-h-full max-w-full object-contain" />
+              </div>
+            ) : (
+              <div className="bg-surface dark:bg-background border-2 border-dashed border-gray-300 rounded-2xl overflow-hidden relative w-full max-w-lg h-40 touch-none shadow-sm">
+                <canvas
+                  ref={canvasRef}
+                  width={500}
+                  height={160}
+                  className="w-full h-full cursor-crosshair"
+                  onPointerDown={iniciarDibujo}
+                  onPointerMove={dibujar}
+                  onPointerUp={detenerDibujo}
+                  onPointerOut={detenerDibujo}
+                />
+                {!canvasTieneTrazos && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-muted/50 font-medium text-sm">
+                    Pide al paciente que firme aquí
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted mt-3 italic text-center">
+              Al firmar este expediente, el paciente acepta los tratamientos, padecimientos médicos y el historial registrado.
+            </p>
+          </div>
+        </section>
+
+      </div>
+
+      {/* BOTONERA INFERIOR: GUARDAR Y ELIMINAR EXPEDIENTE */}
+      <div className="flex flex-col md:flex-row gap-3 w-full">
+        <button onClick={guardarExpedienteYRegresar} className="w-full flex-1 bg-primary hover:bg-primary-hover text-white py-4 rounded-full font-black text-lg shadow-lg flex justify-center items-center gap-2 transition-transform hover:scale-[1.01]">
+          <Check size={24} /> Guardar Expediente de Paciente
+        </button>
+
+        {datosPaciente.id && (
+          <button 
+            onClick={() => eliminarPaciente(datosPaciente.id)} 
+            className="w-full md:w-auto bg-danger/10 hover:bg-danger text-danger hover:text-white dark:bg-red-900/20 dark:hover:bg-red-900/80 dark:text-red-400 py-4 px-8 rounded-full font-black text-lg shadow-sm flex justify-center items-center gap-2 transition-colors shrink-0"
+          >
+            <Trash2 size={24} /> Eliminar Expediente
+          </button>
+        )}
+      </div>
+
+      {/* Modal Visor Imagen */}
+      {imagenEnGrande && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setImagenEnGrande(null)}>
+          <img src={imagenEnGrande} className="max-w-full max-h-full rounded-lg object-contain" />
+          <button className="absolute top-4 right-4 text-white hover:text-danger"><X size={32}/></button>
+        </div>
+      )}
+
+      {/* Modal Tratamiento */}
+      {modalTratamiento && (
+        <div className="fixed inset-0 bg-dark/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-surface rounded-3xl p-6 w-full max-w-2xl shadow-xl mt-20 sm:mt-0">
+            <h3 className="text-xl font-bold mb-4">Agregar Tratamiento Realizado</h3>
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-muted mb-1">Fecha del procedimiento</label>
+              <input type="date" value={tratamientoTemp.fecha} onChange={e=>setTratamientoTemp({...tratamientoTemp, fecha: e.target.value})} className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 outline-none focus:border-primary" />
+            </div>
+            
+            <label className="block text-xs font-bold text-muted mb-2">Procedimiento realizado (Selecciona uno solo)</label>
+            <select 
+              value={tratamientoTemp.procedimientos[0] || ''} 
+              onChange={e=>setTratamientoTemp({...tratamientoTemp, procedimientos: [e.target.value]})} 
+              className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 mb-4 h-32 text-sm outline-none focus:border-primary" 
+              size="5"
+            >
+              {catalogoProcedimientos.map(p => <option key={p.id} value={p.nombre} className="p-1">{p.nombre}</option>)}
+            </select>
+            
+            <label className="block text-xs font-bold text-muted mb-2">Dientes aplicados (Múltiple)</label>
+            <select multiple value={tratamientoTemp.dientes} onChange={e=>setTratamientoTemp({...tratamientoTemp, dientes: Array.from(e.target.selectedOptions, o=>o.value)})} className="w-full p-2 bg-surface dark:bg-background rounded border border-gray-200 mb-6 h-32 text-sm font-mono outline-none focus:border-primary" size="5">
+              {DIENTES_ADULTOS.map(d => <option key={d} value={d} className="p-1">Diente {d}</option>)}
+            </select>
+            
+            <div className="flex gap-4">
+              <button onClick={() => setModalTratamiento(false)} className="flex-1 py-3 font-bold text-muted bg-surface dark:bg-background rounded-full">Cancelar</button>
+              <button onClick={guardarTratamiento} className="flex-1 py-3 font-bold text-white bg-primary rounded-full">Agregar Tratamiento</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
