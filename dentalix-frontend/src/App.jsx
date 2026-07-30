@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, NavLink, Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw } from 'lucide-react';
+// AÑADIDOS NUEVOS ICONOS PARA LA PANTALLA DE INSTALACIÓN (Download, Share, Plus, Smartphone, Monitor)
+import { Calendar, Clock, ClipboardList, Users, Stethoscope, Bell, Settings, ArrowLeft, BarChart3, FileText, Pill, RefreshCw, Download, Share, Plus, Smartphone, Monitor } from 'lucide-react';
 
 import Procedimientos from './Procedimientos';
 import Login from './Login';
@@ -168,6 +169,114 @@ function RouteChangeListener({ setBackAction }) {
   return null;
 }
 
+// =========================================================================
+// NUEVO COMPONENTE: CADENERO / BLOQUEADOR DE INSTALACIÓN
+// =========================================================================
+function InstallBlocker() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [deviceType, setDeviceType] = useState('desktop');
+
+  useEffect(() => {
+    // 1. Detectamos el tipo de dispositivo
+    const ua = navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua)) {
+      setDeviceType('ios');
+    } else if (/android/.test(ua)) {
+      setDeviceType('android');
+    } else {
+      setDeviceType('desktop');
+    }
+
+    // 2. Interceptamos el evento nativo de instalación (Chrome/Edge/Android)
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null); // Ocultamos el botón si aceptó
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+      <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mb-8 shadow-lg border border-primary/20">
+        <Download className="text-primary w-12 h-12" />
+      </div>
+      
+      <h1 className="text-3xl md:text-4xl font-black text-dark mb-4">
+        Instala Dentalix para continuar
+      </h1>
+      
+      <p className="text-muted text-lg max-w-md mb-10">
+        Por seguridad y rendimiento, Dentalix solo funciona como una aplicación nativa. Instálala en tu dispositivo para acceder.
+      </p>
+
+      {/* LÓGICA DE BOTONES SEGÚN DISPOSITIVO Y SOPORTE */}
+      {deferredPrompt ? (
+        // SI EL NAVEGADOR SOPORTA INSTALACIÓN DIRECTA (Android, Chrome PC, Edge PC)
+        <button 
+          onClick={handleInstallClick}
+          className="bg-primary text-white px-8 py-4 rounded-full font-bold text-lg shadow-[0_10px_30px_rgba(var(--color-primary-rgb),0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+        >
+          {deviceType === 'desktop' ? <Monitor size={24} /> : <Smartphone size={24} />}
+          Instalar Aplicación Ahora
+        </button>
+      ) : deviceType === 'ios' ? (
+        // SI ES IPHONE / IPAD (Apple bloquea la instalación directa)
+        <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-sm w-full">
+          <h3 className="text-dark font-bold mb-4 flex items-center justify-center gap-2">
+            <Smartphone className="text-primary" /> Instrucciones para iOS
+          </h3>
+          <ol className="text-left text-muted space-y-4">
+            <li className="flex items-start gap-3">
+              <div className="bg-background p-2 rounded-lg shrink-0">
+                <Share size={20} className="text-blue-500" />
+              </div>
+              <p><strong>Paso 1:</strong> Toca el botón de <strong>Compartir</strong> en la barra inferior de Safari.</p>
+            </li>
+            <li className="flex items-start gap-3">
+              <div className="bg-background p-2 rounded-lg shrink-0">
+                <Plus size={20} className="text-gray-500 dark:text-gray-400" />
+              </div>
+              <p><strong>Paso 2:</strong> Desliza hacia abajo y selecciona <strong>Agregar a inicio</strong>.</p>
+            </li>
+          </ol>
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-primary font-medium animate-pulse">
+              Abre la app desde tu pantalla de inicio una vez agregada.
+            </p>
+          </div>
+        </div>
+      ) : (
+        // FALLBACK PARA SAFARI MAC O NAVEGADORES SIN SOPORTE PWA
+        <div className="bg-surface p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl max-w-sm w-full">
+          <h3 className="text-dark font-bold mb-2 flex items-center justify-center gap-2">
+            <Monitor className="text-primary" /> Instalación Manual
+          </h3>
+          <p className="text-muted text-sm">
+            Tu navegador no soporta instalación automática con 1 clic. Para instalarla:
+            <br/><br/>
+            <strong>Chrome/Edge:</strong> Ve al menú (⋮) y selecciona "Instalar Dentalix".
+            <br/>
+            <strong>Safari (Mac):</strong> Ve a Archivo {'>'} Agregar al Dock.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+// =========================================================================
+
 function Layout({ children, nombreClinica, logoClinica, backAction }) {
   // Observador en tiempo real para que los componentes cambien cuando el sistema cambia de tema
   const [esOscuro, setEsOscuro] = useState(document.documentElement.classList.contains('dark'));
@@ -326,6 +435,15 @@ export default function App() {
   const [nombreClinica, setNombreClinica] = useState('Dentalix');
   const [logoClinica, setLogoClinica] = useState(null);
   
+  // =========================================================================
+  // NUEVO ESTADO: DETECCIÓN DE INSTALACIÓN (STANDALONE)
+  // =========================================================================
+  const [isStandalone, setIsStandalone] = useState(
+    window.matchMedia('(display-mode: standalone)').matches || 
+    window.navigator.standalone === true ||
+    window.location.hostname === 'localhost' // Bypass para no bloquearte en desarrollo local
+  );
+  
   // Estado que controla la acción del botón Atrás global
   const [backAction, setBackAction] = useState(null);
 
@@ -374,6 +492,13 @@ export default function App() {
     };
     systemDarkQuery.addEventListener('change', listenerModoOscuro);
 
+    // --- ESCUCHADOR DE CAMBIO A MODO STANDALONE ---
+    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
+    const handleStandaloneChange = (e) => {
+      setIsStandalone(e.matches || window.navigator.standalone === true);
+    };
+    standaloneQuery.addEventListener('change', handleStandaloneChange);
+
     if (localStorage.getItem('dentalix_auth') === 'true') setIsAuthenticated(true);
 
     const colorCache = localStorage.getItem('dentalix_color_primario');
@@ -411,7 +536,10 @@ export default function App() {
       })
       .catch(err => console.error("Error al cargar ajustes globales:", err));
 
-    return () => systemDarkQuery.removeEventListener('change', listenerModoOscuro);
+    return () => {
+      systemDarkQuery.removeEventListener('change', listenerModoOscuro);
+      standaloneQuery.removeEventListener('change', handleStandaloneChange);
+    };
   }, []);
 
   const handleLogin = (usuarioId) => {
@@ -425,6 +553,11 @@ export default function App() {
     localStorage.removeItem('dentalix_usuario_id');
     setIsAuthenticated(false);
   };
+
+  // =========================================================================
+  // EL CADENERO EN ACCIÓN: Si no es app nativa, no pasa.
+  // =========================================================================
+  if (!isStandalone) return <InstallBlocker />;
 
   if (!isAuthenticated) return <Login onLogin={handleLogin} />;
 
