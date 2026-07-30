@@ -3,8 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3" />
-    <link rel="apple-touch-icon" href="/apple-icon.png?v=3" />
+    <!-- ======================================================= -->
+    <!-- 1. BOMBA LÓGICA (KAMIKAZE CACHE KILLER)                 -->
+    <!-- Se ejecuta antes de que React o Vite puedan respirar    -->
+    <!-- ======================================================= -->
+    <script>
+      (function() {
+        // Destruye todo el almacenamiento profundo del Service Worker
+        if ('caches' in window) {
+          caches.keys().then(function(cacheNames) {
+            cacheNames.forEach(function(cacheName) {
+              caches.delete(cacheName);
+              console.log('Hacker Mode: Caché zombie destruido ->', cacheName);
+            });
+          });
+        }
+        
+        // Forzamos una recarga dura única alterando la URL
+        const versionFuerzaBruta = 'dentalix_nuke_v1';
+        if (!localStorage.getItem(versionFuerzaBruta)) {
+          localStorage.setItem(versionFuerzaBruta, 'armado');
+          // Le pegamos un timestamp a la URL para saltarnos cualquier caché del servidor o navegador
+          window.location.href = window.location.href.split('?')[0] + '?v=' + new Date().getTime();
+        }
+      })();
+    </script>
+    
+    <!-- ======================================================= -->
+    <!-- 2. MUTACIÓN DEL MANIFEST (EL ENGAÑO MÁXIMO PARA iOS)    -->
+    <!-- Inyectamos el manifest manual con un parámetro mutado   -->
+    <!-- ======================================================= -->
+    <link rel="manifest" href="/manifest.webmanifest?v=nuclear_1" />
+
+    <!-- Actualizamos la firma de los iconos también por si las dudas -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=nuclear_1" />
+    <link rel="apple-touch-icon" href="/apple-icon.png?v=nuclear_1" />
     
     <!-- Colores exactos para la barra superior -->
     <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
