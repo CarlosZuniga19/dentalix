@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Recordatorios() {
   const [citasHoy, setCitasHoy] = useState([]);
-  const [recalls, setRecalls] = useState([]); // Estado para las notificaciones de limpieza/revisión
+  const [recalls, setRecalls] = useState([]); 
   const [cargando, setCargando] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
   const [mensajeExito, setMensajeExito] = useState(null);
@@ -28,7 +28,6 @@ export default function Recordatorios() {
   useEffect(() => {
     const hoy = getFechaHoyLocal();
     
-    // 1. Cargar las citas de la agenda de hoy
     fetch(`${API_URL}?accion=recordatorios_hoy&fecha_hoy=${hoy}`)
       .then(res => res.json())
       .then(data => {
@@ -40,7 +39,6 @@ export default function Recordatorios() {
         setCargando(false);
       });
 
-    // 2. Cargar TODAS las citas para calcular el Recall (Limpiezas y Revisiones)
     fetch(`${API_URL}?accion=citas_lista`)
       .then(res => res.json())
       .then(data => {
@@ -48,7 +46,6 @@ export default function Recordatorios() {
         const now = new Date(hoy + 'T00:00:00');
         const pacientesMap = {};
 
-        // Agrupar y detectar la última cita de cada paciente
         citas.forEach(c => {
           if (!pacientesMap[c.id_paciente]) {
             pacientesMap[c.id_paciente] = {
@@ -62,12 +59,10 @@ export default function Recordatorios() {
           const p = pacientesMap[c.id_paciente];
           const fechaCita = new Date(c.fecha + 'T00:00:00');
 
-          // Si el paciente tiene una cita hoy o en el futuro (y no está cancelada), no lo molestamos
           if (fechaCita >= now && (!c.estado || !c.estado.includes('cancelado'))) {
             p.tieneCitaFutura = true;
           }
 
-          // Registrar la cita pasada más reciente
           if (fechaCita < now && (!c.estado || !c.estado.includes('cancelado'))) {
             if (!p.ultimaCita || fechaCita > p.ultimaCita) {
               p.ultimaCita = fechaCita;
@@ -77,11 +72,11 @@ export default function Recordatorios() {
 
         const recallList = [];
         Object.values(pacientesMap).forEach(p => {
-          if (p.tieneCitaFutura || !p.ultimaCita) return; // Si ya tiene cita programada, ignorar
+          if (p.tieneCitaFutura || !p.ultimaCita) return; 
 
           const diffTime = now - p.ultimaCita;
           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          const diffMonths = diffDays / 30.44; // Promedio de días en un mes
+          const diffMonths = diffDays / 30.44; 
 
           if (diffMonths >= 12) {
             recallList.push({ ...p, tipo: 'revisión', meses: Math.floor(diffMonths) });
@@ -90,7 +85,6 @@ export default function Recordatorios() {
           }
         });
 
-        // Ordenar para mostrar primero los que llevan más tiempo sin venir
         recallList.sort((a, b) => b.meses - a.meses);
         setRecalls(recallList);
       })
@@ -169,16 +163,13 @@ export default function Recordatorios() {
     });
   };
 
-  // Función para navegar al expediente desde la notificación
   const irAPaciente = (pacienteRecall) => {
-    // Mandamos la instrucción al enrutador de que preseleccione a este paciente
     navigate('/pacientes', { state: { pacientePreseleccionadoParaAbrir: pacienteRecall } });
   };
 
   return (
     <div className="max-w-4xl mx-auto pb-24">
 
-      {/* ================= CARRUSEL DE NOTIFICACIONES (RECALL) ================= */}
       {recalls.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-black text-primary uppercase mb-3 flex items-center gap-2">
@@ -210,7 +201,6 @@ export default function Recordatorios() {
         </div>
       )}
       
-      {/* ================= AGENDA DEL DÍA == =============== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-dark flex items-center gap-2">
@@ -331,7 +321,7 @@ export default function Recordatorios() {
                 </div>
               )}
 
-              <div className="px-4 py-2.5 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-transparent flex justify-end">
+              <div className="px-4 py-2.5 border-t border-gray-100 tarjeta-footer flex justify-end">
                 <button
                   onClick={(e) => { e.stopPropagation(); abrirWhatsAppRecordatorio(cita); }}
                   className="bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-1.5 px-5 rounded-full flex items-center justify-center gap-1.5 shadow-sm transition-colors text-xs"

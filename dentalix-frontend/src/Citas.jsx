@@ -295,10 +295,11 @@ export default function Citas() {
   const eliminarCita = (idCita) => {
     if (!window.confirm("¿Estás seguro de que deseas eliminar esta cita? Esta acción no se puede deshacer y borrará los procedimientos asociados a esta cotización.")) return;
     
-    fetch(`${API_URL}?accion=eliminar_cita`, {
+    // FORZAMOS LA VARIABLE EN LA URL PARA EVITAR EL BLOQUEO DEL BACKEND (PHP)
+    fetch(`${API_URL}?accion=eliminar_cita&id_cita=${idCita}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_cita: idCita })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ id_cita: idCita })
     })
     .then(res => res.json())
     .then(data => {
@@ -694,7 +695,7 @@ export default function Citas() {
       <div className="bg-white dark:bg-surface p-6 rounded-3xl shadow-sm border-2 border-primary/20 relative">
         <h2 className="text-sm font-black text-primary uppercase mb-2">Buscador de Pacientes Registrados</h2>
         <div className="relative">
-          <input type="text" placeholder="Escribe el nombre para buscar..." value={busquedaPaciente} onChange={(e) => setBusquedaPaciente(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-surface border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark text-sm font-medium" />
+          <input type="text" placeholder="Escribe el nombre para buscar..." value={busquedaPaciente} onChange={(e) => setBusquedaPaciente(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-surface border border-gray-200 rounded-full focus:outline-none focus:border-primary text-dark text-sm font-medium dark:border-white/10 dark:focus:border-primary" />
           <Search className="absolute left-3.5 top-3.5 text-muted" size={18} />
         </div>
         {busquedaPaciente && (
@@ -731,7 +732,7 @@ export default function Citas() {
         )}
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border-gray-200 rounded-full text-dark" /></div>
+          <div><label className="block text-sm font-medium text-muted mb-1 ml-2">Fecha de Cita</label><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark" /></div>
           
           <div>
             <label className="block text-sm font-medium text-muted mb-1 ml-2">Hora</label>
@@ -739,7 +740,7 @@ export default function Citas() {
               <select 
                 value={horaCombo} 
                 onChange={e => setHoraCombo(e.target.value)} 
-                className="w-1/2 p-3 bg-surface border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
               >
                 {Array.from({length: 13}, (_, i) => {
                   const h = (i + 8).toString().padStart(2, '0');
@@ -750,7 +751,7 @@ export default function Citas() {
               <select 
                 value={minutoCombo} 
                 onChange={e => setMinutoCombo(e.target.value)} 
-                className="w-1/2 p-3 bg-surface border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
+                className="w-1/2 p-3 bg-surface border border-gray-200 rounded-full text-dark font-bold outline-none focus:border-primary appearance-none text-center"
               >
                 <option value="00">00</option>
                 <option value="15">15</option>
@@ -765,7 +766,7 @@ export default function Citas() {
             <select 
               value={profesional} 
               onChange={e => setProfesional(e.target.value)} 
-              className="w-full p-3 bg-surface border-gray-200 rounded-full text-dark font-medium outline-none focus:border-primary appearance-none"
+              className="w-full p-3 bg-surface border border-gray-200 rounded-full text-dark font-medium outline-none focus:border-primary appearance-none"
             >
               <option value={doctorPorDefecto}>{doctorPorDefecto}</option>
               <option value="Doctor invitado">Doctor invitado</option>
@@ -788,12 +789,12 @@ export default function Citas() {
         <section>
           <h2 className="text-xl font-bold text-dark mb-4 border-b pb-2">{idCitaEditando ? "Editando Datos del Paciente" : (pacienteSeleccionado ? "Datos del Paciente Seleccionado" : "Paciente Nuevo")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl font-bold" />
-            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl" />
-            <input type="date" placeholder="Fecha Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl" />
-            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl" />
-            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl md:col-span-2" />
-            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
+            <input type="text" placeholder="Nombre completo" value={datosPaciente.nombre} onChange={e=>setDatosPaciente({...datosPaciente, nombre: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl font-bold" />
+            <input type="tel" placeholder="Teléfono" value={datosPaciente.telefono} onChange={e=>setDatosPaciente({...datosPaciente, telefono: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
+            <input type="date" placeholder="Fecha Nacimiento" value={datosPaciente.fechaNacimiento} onChange={e=>setDatosPaciente({...datosPaciente, fechaNacimiento: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
+            <input type="text" placeholder="Ocupación" value={datosPaciente.ocupacion} onChange={e=>setDatosPaciente({...datosPaciente, ocupacion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl" />
+            <input type="text" placeholder="Dirección" value={datosPaciente.direccion} onChange={e=>setDatosPaciente({...datosPaciente, direccion: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" />
+            <textarea placeholder="Motivo de consulta" value={datosPaciente.motivo} onChange={e=>setDatosPaciente({...datosPaciente, motivo: e.target.value})} className="w-full p-3 bg-surface border border-gray-200 rounded-xl md:col-span-2" rows="2"></textarea>
           </div>
         </section>
 
@@ -916,8 +917,8 @@ export default function Citas() {
         <section className="p-5 bg-surface border-gray-200 rounded-2xl">
           <label className="block text-sm font-medium text-muted mb-2">Monto a Cobrar / Abonar en Caja</label>
           <div className="flex flex-col sm:flex-row gap-3 mb-3">
-            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full sm:flex-1 p-3 bg-white dark:bg-background border-gray-200 rounded-full font-bold text-dark outline-none focus:border-primary shadow-sm" />
-            <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="w-full sm:w-auto bg-dark hover:bg-black text-white px-6 py-3 rounded-full font-bold text-sm shadow-sm flex items-center justify-center gap-2 shrink-0 transition-colors">
+            <input type="number" inputMode="decimal" value={abono} onChange={e => setAbono(e.target.value)} placeholder="$ 0.00" className="w-full sm:flex-1 p-3 bg-slate-50 border border-gray-200 rounded-full font-bold text-dark focus:outline-none focus:border-primary shadow-sm dark:border-white/10 dark:focus:border-primary" />
+            <button type="button" onClick={() => alert("¡Abono capturado! El cálculo se ha actualizado, recuerda presionar 'Guardar Registro y Cita' al final para grabarlo en la base de datos.")} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full font-bold text-sm shadow-sm flex items-center justify-center gap-2 shrink-0 transition-colors">
               <Check size={16} /> Aplicar
             </button>
           </div>
