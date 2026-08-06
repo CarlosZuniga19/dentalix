@@ -184,7 +184,7 @@ export default function Calendario() {
                 const citasDelDia = dia 
                   ? citasReales.filter(c => c.fecha === dia.fechaStr).sort((a, b) => a.hora.localeCompare(b.hora)) 
                   : [];
-                
+                 
                 return (
                   <div 
                     key={diaIndex} 
