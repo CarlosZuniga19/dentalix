@@ -181,7 +181,9 @@ export default function Calendario() {
               
               {semana.map((dia, diaIndex) => {
                 const isBlocked = dia ? diasBloqueados.includes(dia.fechaStr) : false;
-                const citasDelDia = dia ? citasReales.filter(c => c.fecha === dia.fechaStr) : [];
+                const citasDelDia = dia 
+                  ? citasReales.filter(c => c.fecha === dia.fechaStr).sort((a, b) => a.hora.localeCompare(b.hora)) 
+                  : [];
                 
                 return (
                   <div 
