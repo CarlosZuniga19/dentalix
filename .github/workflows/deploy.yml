@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main 
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
+# ... (deja todo lo demás exactamente igual)
     runs-on: ubuntu-latest
     steps:
     - name: Descargar código
