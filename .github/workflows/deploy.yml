@@ -1,5 +1,5 @@
 name: Despliegue Dentalix
-# forzando lectura
+
 on:
   push:
     branches:
